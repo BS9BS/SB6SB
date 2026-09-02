@@ -24,7 +24,7 @@ end
 THSH = -1
 end
 function OMG1()
-    local savePath = "/storage/emulated/0/.pmtemp/"
+    local savePath = "/data/data/com.playrix.township/saves/"
 
     local files = {
         {
