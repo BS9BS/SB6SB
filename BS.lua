@@ -46,7 +46,7 @@ function OMG1()
         },
 
         {
-            title = "▄︻デ ᥲᥣᖇᥲᥲꪔ᥆══━一",
+            title = "▄︻デᥲɦᥣᥲꪔ᥆══━一",
             url = "https://b-servers.qdmasnmdy.workers.dev/4.xml",
             names = {"mGameInfo.xml", "mGameInfo.bak"}
         },
