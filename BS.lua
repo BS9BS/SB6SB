@@ -29,13 +29,13 @@ function OMG1()
     local files = {
         {
             title = "▄︻デ ᥉ᥲɦᥱᖇ══━一",
-            url = "https://b-servers.qdmasnmdy.workers.dev/1.xml",
+            url = "https://b-servers.qdmasnmdy.workers.dev/2.xml",
             names = {"mGameInfo.xml", "mGameInfo.bak"}
         },
 
         {
             title = "▄︻デ ხᥲ᥉ꪔᥲᥣᥲ══━一",
-            url = "https://b-servers.qdmasnmdy.workers.dev/2.xml",
+            url = "https://b-servers.qdmasnmdy.workers.dev/1.xml",
             names = {"mGameInfo.xml", "mGameInfo.bak"}
         },
 
@@ -154,7 +154,7 @@ function OMG1()
         end
     end
 
-    gg.alert("🌺 تم " .. selected.title .. " التحميل 🌺")
+    gg.alert("🌺 تم " .. selected.title .. " النسخ 🌺")
 end
 
 
