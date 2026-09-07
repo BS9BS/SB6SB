@@ -1,12 +1,13 @@
 if gg.PACKAGE == "com.grh.gwvmm" then
+
 --------------------------------------------------
 -- 📁 المسارات
 --------------------------------------------------
-local SAVE_ID_FILE     = "/sdcard/.gg_install_id.txt"
-local SAVE_TIME_FILE   = "/sdcard/.gg_activate_time.txt"
-local SAVE_LAST_FILE   = "/sdcard/.gg_last_run.txt"
-local SAVE_FIRST_RUN   = "/sdcard/.gg_first_run.txt"
-local SAVE_WARN_FILE   = "/sdcard/.gg_warned.txt"
+local SAVE_ID_FILE     = "/storage/emulated/0/MT2/.gg_install_id.txt"
+local SAVE_TIME_FILE   = "/storage/emulated/0/MT2/.gg_activate_time.txt"
+local SAVE_LAST_FILE   = "/storage/emulated/0/MT2/.gg_last_run.txt"
+local SAVE_FIRST_RUN   = "/storage/emulated/0/MT2/.gg_first_run.txt"
+local SAVE_WARN_FILE   = "/storage/emulated/0/MT2/.gg_warned.txt"
 
 --------------------------------------------------
 -- ⏳ الإعدادات
@@ -186,7 +187,7 @@ local DEVICE_ID = getInstallID()
 -- 🔐 EXPECTED CODE
 --------------------------------------------------
 local SECRET = getDynamicSecret()
-local EXPECTED_CODE = simpleHash(DEVICE_ID .. SECRET)
+local EXPECTED_CODE = "BS-" .. simpleHash(DEVICE_ID .. SECRET)
 
 --------------------------------------------------
 -- 🔐 نظام التفعيل
@@ -262,6 +263,11 @@ if warned then warned:close() end
 --------------------------------------------------
 -- ✅ انتهى نظام التفعيل والحماية
 --------------------------------------------------
+
+
+----------------------------------------------------------------
+-- 🔥🔥🔥 هنا تضع سكربتك الخاص 🔥🔥🔥
+----------------------------------------------------------------
 
 function welcome()
     local text = [[
