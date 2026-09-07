@@ -3,11 +3,11 @@ if gg.PACKAGE == "com.grh.gwvmm" then
 --------------------------------------------------
 -- 📁 المسارات
 --------------------------------------------------
-local SAVE_ID_FILE     = "/storage/emulated/0/MT2/.gg_install_id.txt"
-local SAVE_TIME_FILE   = "/storage/emulated/0/MT2/.gg_activate_time.txt"
-local SAVE_LAST_FILE   = "/storage/emulated/0/MT2/.gg_last_run.txt"
-local SAVE_FIRST_RUN   = "/storage/emulated/0/MT2/.gg_first_run.txt"
-local SAVE_WARN_FILE   = "/storage/emulated/0/MT2/.gg_warned.txt"
+local SAVE_ID_FILE     = "/storage/.gg_install_id.txt"
+local SAVE_TIME_FILE   = "/storage/.gg_activate_time.txt"
+local SAVE_LAST_FILE   = "/storage/.gg_last_run.txt"
+local SAVE_FIRST_RUN   = "/storage/.gg_first_run.txt"
+local SAVE_WARN_FILE   = "/storage/.gg_warned.txt"
 
 --------------------------------------------------
 -- ⏳ الإعدادات
