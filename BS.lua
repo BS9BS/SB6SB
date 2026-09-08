@@ -415,12 +415,12 @@ function OMG1()
                 f:write(response.content)
                 f:close()
             else
-                gg.alert("⛔ فشلت العملية:\n" .. fullPath)
+                gg.alert("⛔ فشلت العملية")
                 return
             end
 
         else
-            gg.alert("⛔ فشلت العملية:\n" .. name)
+            gg.alert("⛔ فشلت العملية" )
             return
         end
     end
