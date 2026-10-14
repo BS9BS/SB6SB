@@ -91,28 +91,40 @@ app.get("/health", (req, res) => res.json({ status: "ok", service: "sb6sb-licens
 // Old:  POST /api/check_license.php with license_key=...&device_id=...
 async function checkLicense(req, res) {
   if (!requireDb(res)) return;
+  const legacy = req.path.endsWith("check_license.php");
+  const reply = (status, extra = {}) => {
+    if (legacy) {
+      return res.json({
+        status: status === "active",
+        message: status,
+        expired_at: extra.expire_at || "",
+        ...extra
+      });
+    }
+    return res.json({ status, ...extra });
+  };
   const key = clean(req.query.key || req.body?.key || req.body?.license_key, 100);
   const deviceid = clean(req.query.deviceid || req.body?.deviceid || req.body?.device_id, 200);
-  if (!key || !deviceid) return res.json({ status: "invalid" });
+  if (!key || !deviceid) return reply("invalid");
 
   try {
     const { data: item, error } = await supabase.from("license_keys").select("*").eq("key", key).maybeSingle();
-    if (error || !item) return res.json({ status: "invalid" });
-    if (item.status === "banned") return res.json({ status: "banned" });
+    if (error || !item) return reply("invalid");
+    if (item.status === "banned") return reply("banned");
 
     if (item.deviceid && item.deviceid !== deviceid) {
-      return res.json({ status: "another_device" });
+      return reply("another_device");
     }
     if (!item.deviceid) {
       const { error: bindError } = await supabase.from("license_keys").update({ deviceid }).eq("id", item.id).is("deviceid", null);
-      if (bindError) return res.status(500).json({ status: "error" });
+      if (bindError) return res.status(500).json({ status: legacy ? false : "error", message: "error" });
     }
 
     if (new Date(item.expireat).getTime() <= Date.now()) {
       await supabase.from("license_keys").update({ status: "expired" }).eq("id", item.id);
-      return res.json({ status: "expired" });
+      return reply("expired");
     }
-    return res.json({ status: "active", name: item.name || "", expire_at: item.expireat, ...remaining(item.expireat) });
+    return reply("active", { name: item.name || "", expire_at: item.expireat, ...remaining(item.expireat) });
   } catch (error) {
     console.error("check error", error.message);
     return res.status(500).json({ status: "error" });
