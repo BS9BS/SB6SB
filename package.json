@@ -1,0 +1,18 @@
+{
+  "name": "sb6sb-license-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "License and device activation API for SB6SB",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.8",
+    "cors": "^2.8.5",
+    "express": "^4.21.2"
+  }
+}
