@@ -86,11 +86,13 @@ function remaining(expireAt) {
 
 app.get("/health", (req, res) => res.json({ status: "ok", service: "sb6sb-license-server" }));
 
-// Compatible with the existing Lua contract: /api/check?key=...&deviceid=...
-app.get("/api/check", rateLimit, async (req, res) => {
+// Compatible with both the new Lua contract and the original Android contract.
+// New:  GET  /api/check?key=...&deviceid=...
+// Old:  POST /api/check_license.php with license_key=...&device_id=...
+async function checkLicense(req, res) {
   if (!requireDb(res)) return;
-  const key = clean(req.query.key, 100);
-  const deviceid = clean(req.query.deviceid, 200);
+  const key = clean(req.query.key || req.body?.key || req.body?.license_key, 100);
+  const deviceid = clean(req.query.deviceid || req.body?.deviceid || req.body?.device_id, 200);
   if (!key || !deviceid) return res.json({ status: "invalid" });
 
   try {
@@ -115,7 +117,10 @@ app.get("/api/check", rateLimit, async (req, res) => {
     console.error("check error", error.message);
     return res.status(500).json({ status: "error" });
   }
-});
+}
+
+app.all("/api/check", rateLimit, checkLicense);
+app.all("/api/check_license.php", rateLimit, checkLicense);
 
 app.post("/api/request", rateLimit, async (req, res) => {
   if (!requireDb(res)) return;
