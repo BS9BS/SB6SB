@@ -10,6 +10,64 @@ const supabase = process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_K
   ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { autoRefreshToken: false, persistSession: false } })
   : null;
 
+// The APK writes one CRLF instead of the usual blank line between multipart
+// headers and values. Parse both standard and legacy multipart bodies.
+function parseMultipart(req, res, next) {
+  const contentType = String(req.headers["content-type"] || "");
+  const match = contentType.match(/boundary=(?:"([^"]+)"|([^;]+))/i);
+  if (!match) return next();
+  const boundary = match[1] || match[2];
+  const chunks = [];
+  let total = 0;
+  req.on("data", (chunk) => {
+    total += chunk.length;
+    if (total <= 60 * 1024 * 1024) chunks.push(chunk);
+  });
+  req.on("end", () => {
+    if (total > 60 * 1024 * 1024) return res.status(413).json({ status: false, message: "file too large" });
+    const raw = Buffer.concat(chunks);
+    const marker = Buffer.from(`--${boundary}`);
+    const fields = {};
+    const files = [];
+    let cursor = 0;
+    while (true) {
+      const startMarker = raw.indexOf(marker, cursor);
+      if (startMarker < 0) break;
+      let start = startMarker + marker.length;
+      if (raw[start] === 45 && raw[start + 1] === 45) break;
+      if (raw[start] === 13 && raw[start + 1] === 10) start += 2;
+      const nextMarker = raw.indexOf(marker, start);
+      if (nextMarker < 0) break;
+      let part = raw.subarray(start, nextMarker);
+      if (part.length >= 2 && part[part.length - 2] === 13 && part[part.length - 1] === 10) part = part.subarray(0, -2);
+      let headerEnd = part.indexOf(Buffer.from("\r\n\r\n"));
+      let separatorLength = 4;
+      if (headerEnd < 0) {
+        headerEnd = part.indexOf(Buffer.from("\r\n"));
+        separatorLength = 2;
+      }
+      if (headerEnd < 0) { cursor = nextMarker; continue; }
+      const headers = part.subarray(0, headerEnd).toString("latin1");
+      const body = part.subarray(headerEnd + separatorLength);
+      const disposition = headers.match(/Content-Disposition:\s*form-data;\s*name="([^"]+)"(?:;\s*filename="([^"]*)")?/i);
+      if (!disposition) { cursor = nextMarker; continue; }
+      const fieldname = disposition[1];
+      const filename = disposition[2];
+      if (filename !== undefined) {
+        const type = (headers.match(/Content-Type:\s*([^\r\n]+)/i) || [])[1] || "application/octet-stream";
+        files.push({ fieldname, originalname: filename, mimetype: type.trim(), buffer: body, size: body.length });
+      } else {
+        fields[fieldname] = body.toString("utf8");
+      }
+      cursor = nextMarker;
+    }
+    req.body = { ...(req.body || {}), ...fields };
+    req.files = files;
+    next();
+  });
+  req.on("error", next);
+}
+
 function value(req, ...names) {
   for (const name of names) {
     const v = req.query?.[name] ?? req.body?.[name];
@@ -59,7 +117,7 @@ router.post("/list_backup_global.php", listBackups);
 router.get("/list_backup.php", listBackups);
 router.post("/list_backup.php", listBackups);
 
-router.post("/upload_backup.php", upload.any(), async (req, res) => {
+router.post("/upload_backup.php", parseMultipart, async (req, res) => {
   if (!db(res)) return;
   const file = (req.files || [])[0];
   console.log(`[upload] files=${(req.files || []).map((item) => item.fieldname).join(",") || "none"} token=${Boolean(req.body?.token)} license_key=${Boolean(req.body?.license_key)}`);
