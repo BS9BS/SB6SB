@@ -95,6 +95,8 @@ function remaining(expireAt) {
 app.get("/health", (req, res) => res.json({ status: "ok", service: "sb6sb-license-server" }));
 
 app.use("/api", backupApi);
+// Some APK builds resolve the backup base URL without /api; keep both forms compatible.
+app.use("/", backupApi);
 
 // Compatible with both the new Lua contract and the original Android contract.
 // New:  GET  /api/check?key=...&deviceid=...
