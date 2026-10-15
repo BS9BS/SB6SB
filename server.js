@@ -1,12 +1,15 @@
 const express = require("express");
 const cors = require("cors");
 const crypto = require("crypto");
+const path = require("path");
 const { createClient } = require("@supabase/supabase-js");
 const backupApi = require("./backup");
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
 const ADMIN_API_KEY = process.env.ADMIN_API_KEY || "";
+const ADMIN_PANEL_PASSWORD = process.env.ADMIN_PANEL_PASSWORD || "";
+const ADMIN_SESSION_SECRET = process.env.ADMIN_SESSION_SECRET || ADMIN_API_KEY;
 const origin = process.env.CORS_ORIGIN || "*";
 
 if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
@@ -64,6 +67,28 @@ function requireAdmin(req, res, next) {
   return next();
 }
 
+function makeAdminSession() {
+  const expires = Date.now() + 8 * 60 * 60 * 1000;
+  const payload = String(expires);
+  const signature = crypto.createHmac("sha256", ADMIN_SESSION_SECRET).update(payload).digest("hex");
+  return `${payload}.${signature}`;
+}
+
+function validAdminSession(req) {
+  if (!ADMIN_SESSION_SECRET) return false;
+  const cookie = (req.headers.cookie || "").split(";").map((item) => item.trim()).find((item) => item.startsWith("bs_admin_session="));
+  const raw = cookie ? cookie.slice("bs_admin_session=".length) : "";
+  const [expires, signature] = raw.split(".");
+  if (!expires || !signature || Number(expires) < Date.now()) return false;
+  const expected = crypto.createHmac("sha256", ADMIN_SESSION_SECRET).update(expires).digest("hex");
+  return signature.length === expected.length && crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
+}
+
+function requireAdminOrSession(req, res, next) {
+  if ((ADMIN_API_KEY && req.get("x-api-key") === ADMIN_API_KEY) || validAdminSession(req)) return next();
+  return res.status(401).json({ status: "unauthorized" });
+}
+
 function requireDb(res) {
   if (!supabase) {
     res.status(503).json({ status: "database_unconfigured" });
@@ -93,6 +118,27 @@ function remaining(expireAt) {
 }
 
 app.get("/health", (req, res) => res.json({ status: "ok", service: "sb6sb-license-server" }));
+
+app.get("/admin", (req, res) => res.sendFile(path.join(__dirname, "admin.html")));
+
+app.post("/admin/login", rateLimit, (req, res) => {
+  if (!ADMIN_PANEL_PASSWORD) return res.status(503).json({ status: "panel_password_unconfigured" });
+  const password = typeof req.body?.password === "string" ? req.body.password : "";
+  const expected = Buffer.from(ADMIN_PANEL_PASSWORD);
+  const received = Buffer.from(password);
+  if (received.length !== expected.length || !crypto.timingSafeEqual(received, expected)) {
+    return res.status(401).json({ status: "invalid_password" });
+  }
+  res.setHeader("Set-Cookie", `bs_admin_session=${makeAdminSession()}; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=28800`);
+  return res.json({ status: "ok" });
+});
+
+app.post("/admin/logout", (req, res) => {
+  res.setHeader("Set-Cookie", "bs_admin_session=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0");
+  return res.json({ status: "ok" });
+});
+
+app.get("/admin/session", (req, res) => res.json({ authenticated: validAdminSession(req) }));
 
 app.use("/api", backupApi);
 // Some APK builds resolve the backup base URL without /api; keep both forms compatible.
@@ -156,7 +202,15 @@ app.post("/api/request", rateLimit, async (req, res) => {
   return res.json({ status: "received" });
 });
 
-app.post("/api/admin/create-key", requireAdmin, async (req, res) => {
+app.get("/api/admin/keys", requireAdminOrSession, async (req, res) => {
+  if (!requireDb(res)) return;
+  const limit = Math.max(1, Math.min(Number(req.query.limit) || 100, 250));
+  const { data, error } = await supabase.from("license_keys").select("key,name,deviceid,expireat,status,created_at").order("created_at", { ascending: false }).limit(limit);
+  if (error) return res.status(500).json({ status: "error", message: error.message });
+  return res.json({ status: "success", licenses: data || [] });
+});
+
+app.post("/api/admin/create-key", requireAdminOrSession, async (req, res) => {
   if (!requireDb(res)) return;
   const name = clean(req.body.name, 120);
   const deviceid = clean(req.body.deviceid, 200) || null;
@@ -168,7 +222,7 @@ app.post("/api/admin/create-key", requireAdmin, async (req, res) => {
   return res.json({ status: "success", key: data.key, license: data });
 });
 
-app.post("/api/admin/extend", requireAdmin, async (req, res) => {
+app.post("/api/admin/extend", requireAdminOrSession, async (req, res) => {
   if (!requireDb(res)) return;
   const key = clean(req.body.key, 100);
   const days = Math.max(1, Math.min(Number(req.body.days) || 30, 3650));
@@ -182,7 +236,7 @@ app.post("/api/admin/extend", requireAdmin, async (req, res) => {
   return res.json({ status: "success", expire_at: base.toISOString() });
 });
 
-app.post("/api/admin/status", requireAdmin, async (req, res) => {
+app.post("/api/admin/status", requireAdminOrSession, async (req, res) => {
   if (!requireDb(res)) return;
   const key = clean(req.body.key, 100);
   const status = clean(req.body.status, 20);
