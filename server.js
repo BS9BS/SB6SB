@@ -23,6 +23,13 @@ app.use(cors({ origin: origin === "*" ? true : origin }));
 app.use(express.json({ limit: "256kb" }));
 app.use(express.urlencoded({ extended: false, limit: "64kb" }));
 
+// Safe request tracing: log method/path/status only; never log keys or request bodies.
+app.use((req, res, next) => {
+  const started = Date.now();
+  res.on("finish", () => console.log(`[request] ${req.method} ${req.path} ${res.statusCode} ${Date.now() - started}ms`));
+  next();
+});
+
 const requestLog = new Map();
 const WINDOW_MS = 60_000;
 const MAX_PER_WINDOW = 30;
