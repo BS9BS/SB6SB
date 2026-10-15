@@ -195,7 +195,25 @@ router.post("/get_oldest_backup.php", (req, res) => oldest(req, res, false));
 router.get("/claim_oldest_backup.php", (req, res) => oldest(req, res, true));
 router.post("/claim_oldest_backup.php", (req, res) => oldest(req, res, true));
 
-router.all("/license_features.php", (req, res) => res.json({ status: true, features: [] }));
+router.all("/license_features.php", async (req, res) => {
+  if (!db(res)) return;
+  const licenseKey = value(req, "license_key", "key");
+  const { data: license, error } = await supabase.from("license_keys").select("status, expireat").eq("key", licenseKey).maybeSingle();
+  const active = !error && license && license.status === "active" && new Date(license.expireat).getTime() > Date.now();
+  const features = {
+    can_global_backup_read: Boolean(active),
+    global_backup_read: Boolean(active),
+    can_restricted_tools: Boolean(active),
+    restricted_tools: Boolean(active),
+    can_clone_account: Boolean(active),
+    clone_account: Boolean(active),
+    can_clone_fetch_city: Boolean(active),
+    can_clone_fetchcity: Boolean(active),
+    clone_fetch_city: Boolean(active),
+    clone_fetchcity: Boolean(active)
+  };
+  return res.json({ status: Boolean(active), ok: Boolean(active), features });
+});
 router.all("/update_info.php", (req, res) => res.json({ status: true, ok: true }));
 
 module.exports = router;
