@@ -137,6 +137,35 @@ router.post("/upload_backup.php", parseMultipart, async (req, res) => {
   return res.json({ status: true, ok: true, backup: publicItem(data), ...publicItem(data) });
 });
 
+// Process a FetchCity XML in memory and return the modified game save.
+// The file is not stored on the server.
+router.post("/process_fetchcity.php", parseMultipart, (req, res) => {
+  const file = (req.files || []).find((item) => ["file", "backup_file", "fetchcity_file"].includes(item.fieldname)) || (req.files || [])[0];
+  if (!file || !file.buffer?.length) return res.status(400).json({ status: false, message: "FetchCity XML file is required" });
+  let xml = file.buffer.toString("utf8");
+  let cityIdCount = 0;
+  let deviceCount = 0;
+  xml = xml.replace(/(<Var\s+name=["']cityId["']\s+v=["'])[^"']*(["'][^>]*\/?>)/gi, (_m, prefix, suffix) => {
+    cityIdCount += 1;
+    return `${prefix}${suffix}`;
+  });
+  xml = xml.replace(/(<Var\s+name=["']Device["']\s+v=["'])[^"']*(["'][^>]*\/?>)/gi, (_m, prefix, suffix) => {
+    deviceCount += 1;
+    return `${prefix}ASUS_Z01QD${suffix}`;
+  });
+  if (cityIdCount === 0 || deviceCount === 0) {
+    return res.status(422).json({ status: false, message: "Required Var elements were not found", cityIdCount, deviceCount });
+  }
+  res.status(200);
+  res.set({
+    "Content-Type": "application/xml; charset=utf-8",
+    "Content-Disposition": 'attachment; filename="mGameInfo.xml"',
+    "X-CityId-Updated": String(cityIdCount),
+    "X-Device-Updated": String(deviceCount)
+  });
+  return res.send(Buffer.from(xml, "utf8"));
+});
+
 async function findBackup(req, res) {
   const id = value(req, "id", "backup_id", "backupid");
   const fileName = value(req, "file", "file_name", "filename");
