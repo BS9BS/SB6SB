@@ -64,8 +64,8 @@ router.post("/upload_backup.php", upload.any(), async (req, res) => {
   const file = (req.files || [])[0];
   if (!file) return res.status(400).json({ status: false, message: "file is required" });
   const licenseKey = value(req, "license_key", "key");
-  const deviceid = value(req, "deviceid", "device_id");
-  if (!licenseKey || !deviceid) return res.status(400).json({ status: false, message: "license_key and device_id are required" });
+  const deviceid = value(req, "deviceid", "device_id") || `legacy:${value(req, "token") || licenseKey}`;
+  if (!licenseKey) return res.status(400).json({ status: false, message: "license_key is required" });
   const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-120) || "backup.bin";
   const path = `${licenseKey}/${Date.now()}-${crypto.randomBytes(4).toString("hex")}-${safeName}`;
   const { error: storageError } = await supabase.storage.from(BUCKET).upload(path, file.buffer, { contentType: file.mimetype || "application/octet-stream", upsert: false });
@@ -80,9 +80,11 @@ router.post("/upload_backup.php", upload.any(), async (req, res) => {
 
 async function findBackup(req, res) {
   const id = value(req, "id", "backup_id", "backupid");
+  const fileName = value(req, "file", "file_name", "filename");
   const licenseKey = value(req, "license_key", "key");
   let query = supabase.from("backups").select("*").limit(1);
   if (id) query = query.eq("id", id);
+  else if (fileName && licenseKey) query = query.eq("file_name", fileName).eq("license_key", licenseKey);
   else if (licenseKey) query = query.eq("license_key", licenseKey).order("created_at", { ascending: true });
   else return null;
   const { data, error } = await query.maybeSingle();
