@@ -15,7 +15,19 @@ const supabase = process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_K
 function parseMultipart(req, res, next) {
   const contentType = String(req.headers["content-type"] || "");
   const match = contentType.match(/boundary=(?:"([^"]+)"|([^;]+))/i);
-  if (!match) return next();
+  if (!match) {
+    const chunks = [];
+    let total = 0;
+    req.on("data", (chunk) => { total += chunk.length; if (total <= 60 * 1024 * 1024) chunks.push(chunk); });
+    req.on("end", () => {
+      if (total > 60 * 1024 * 1024) return res.status(413).json({ status: false, message: "file too large" });
+      req.body = req.body || {};
+      req.files = [{ fieldname: "file", originalname: "selected_source_friend_city.xml", mimetype: contentType, buffer: Buffer.concat(chunks), size: total }];
+      next();
+    });
+    req.on("error", next);
+    return;
+  }
   const boundary = match[1] || match[2];
   const chunks = [];
   let total = 0;
