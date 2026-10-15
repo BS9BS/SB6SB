@@ -15,7 +15,8 @@ npm start
 
 1. افتح SQL Editor في مشروع Supabase.
 2. نفذ محتوى `schema.sql`.
-3. أنشئ قيمة `SUPABASE_SERVICE_ROLE_KEY` من إعدادات المشروع. لا تضعها داخل التطبيق أو GitHub.
+3. أنشئ قيمة `SUPABASE_SERVICE_ROLE_KEY` من إعدادات المشروع. لا تضع تلك المفتاح داخل التطبيق أو GitHub.
+4. من Storage أنشئ Bucket خاصًا باسم `backups`.
 
 ## إعداد Render
 
@@ -94,6 +95,24 @@ POST /api/admin/extend
 POST /api/admin/status
 {"key":"BS-XXXXXXXXXX","status":"banned"}
 ```
+
+## مسارات النسخ الاحتياطي
+
+هذه المسارات متاحة تحت `/api` ومتوافقة مع أسماء التطبيق القديم:
+
+```text
+/api/list_backup_global.php
+/api/list_backup.php
+/api/upload_backup.php
+/api/download_backup.php
+/api/delete_backup_license.php
+/api/claim_oldest_backup.php
+/api/get_oldest_backup.php
+/api/update_info.php
+/api/license_features.php
+```
+
+رفع الملفات يستخدم `multipart/form-data`، ويحتاج `license_key` و`device_id` مع الملف.
 
 ## ملاحظات
 

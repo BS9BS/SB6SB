@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const crypto = require("crypto");
 const { createClient } = require("@supabase/supabase-js");
+const backupApi = require("./backup");
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
@@ -85,6 +86,8 @@ function remaining(expireAt) {
 }
 
 app.get("/health", (req, res) => res.json({ status: "ok", service: "sb6sb-license-server" }));
+
+app.use("/api", backupApi);
 
 // Compatible with both the new Lua contract and the original Android contract.
 // New:  GET  /api/check?key=...&deviceid=...
