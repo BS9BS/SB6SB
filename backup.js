@@ -62,6 +62,7 @@ router.post("/list_backup.php", listBackups);
 router.post("/upload_backup.php", upload.any(), async (req, res) => {
   if (!db(res)) return;
   const file = (req.files || [])[0];
+  console.log(`[upload] files=${(req.files || []).map((item) => item.fieldname).join(",") || "none"} token=${Boolean(req.body?.token)} license_key=${Boolean(req.body?.license_key)}`);
   if (!file) return res.status(400).json({ status: false, message: "file is required" });
   const licenseKey = value(req, "license_key", "key");
   const deviceid = value(req, "deviceid", "device_id") || `legacy:${value(req, "token") || licenseKey}`;
