@@ -239,8 +239,18 @@ router.post("/claim_oldest_backup.php", (req, res) => oldest(req, res, true));
 router.all("/license_features.php", async (req, res) => {
   if (!db(res)) return;
   const licenseKey = value(req, "license_key", "key");
-  const { data: license, error } = await supabase.from("license_keys").select("status, expireat").eq("key", licenseKey).maybeSingle();
-  const active = !error && license && license.status === "active" && new Date(license.expireat).getTime() > Date.now();
+  const deviceGroup = value(req, "device_group", "device_token");
+  const fingerprint = value(req, "fingerprint");
+  const { data: license, error } = await supabase.from("license_keys").select("id,status,expireat,device_group,fingerprint").eq("key", licenseKey).maybeSingle();
+  let boundError = null;
+  if (!error && license && deviceGroup && license.device_group && license.device_group !== deviceGroup) {
+    return res.status(403).json({ status: false, ok: false, message: "another_device", features: {} });
+  }
+  if (!error && license && deviceGroup && !license.device_group) {
+    const result = await supabase.from("license_keys").update({ device_group: deviceGroup, fingerprint: fingerprint || null }).eq("id", license.id).is("device_group", null);
+    boundError = result.error;
+  }
+  const active = !error && !boundError && license && license.status === "active" && new Date(license.expireat).getTime() > Date.now();
   const features = {
     can_global_backup_read: Boolean(active),
     global_backup_read: Boolean(active),
