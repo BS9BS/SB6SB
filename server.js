@@ -163,6 +163,8 @@ async function checkLicense(req, res) {
   };
   const key = clean(req.query.key || req.body?.key || req.body?.license_key, 100);
   const deviceid = clean(req.query.deviceid || req.body?.deviceid || req.body?.device_id, 200);
+  const deviceGroup = clean(req.query.device_group || req.body?.device_group || req.body?.device_token, 240);
+  const fingerprint = clean(req.query.fingerprint || req.body?.fingerprint, 500);
   if (!key || !deviceid) return reply("invalid");
 
   try {
@@ -170,10 +172,15 @@ async function checkLicense(req, res) {
     if (error || !item) return reply("invalid");
     if (item.status === "banned") return reply("banned");
 
-    if (item.deviceid && item.deviceid !== deviceid) {
+    if (deviceGroup) {
+      if (item.device_group && item.device_group !== deviceGroup) return reply("another_device");
+    } else if (item.deviceid && item.deviceid !== deviceid) {
       return reply("another_device");
     }
-    if (!item.deviceid) {
+    if (deviceGroup && !item.device_group) {
+      const { error: bindError } = await supabase.from("license_keys").update({ device_group: deviceGroup, fingerprint: fingerprint || null }).eq("id", item.id).is("device_group", null);
+      if (bindError) return res.status(500).json({ status: legacy ? false : "error", message: "error" });
+    } else if (!deviceGroup && !item.deviceid) {
       const { error: bindError } = await supabase.from("license_keys").update({ deviceid }).eq("id", item.id).is("deviceid", null);
       if (bindError) return res.status(500).json({ status: legacy ? false : "error", message: "error" });
     }
@@ -195,9 +202,10 @@ app.all("/api/check_license.php", rateLimit, checkLicense);
 app.post("/api/request", rateLimit, async (req, res) => {
   if (!requireDb(res)) return;
   const deviceid = clean(req.body.deviceid, 200);
+  const deviceGroup = clean(req.body.device_group || req.body.device_token, 240);
   const fingerprint = clean(req.body.fingerprint, 500);
   if (!deviceid) return res.status(400).json({ status: "error", message: "deviceid is required" });
-  const { error } = await supabase.from("activation_requests").insert({ deviceid, fingerprint, ip: clientIp(req) });
+  const { error } = await supabase.from("activation_requests").insert({ deviceid: deviceGroup ? `${deviceid}:${deviceGroup}`.slice(0, 200) : deviceid, fingerprint, ip: clientIp(req) });
   if (error) return res.status(500).json({ status: "error" });
   return res.json({ status: "received" });
 });
@@ -205,7 +213,7 @@ app.post("/api/request", rateLimit, async (req, res) => {
 app.get("/api/admin/keys", requireAdminOrSession, async (req, res) => {
   if (!requireDb(res)) return;
   const limit = Math.max(1, Math.min(Number(req.query.limit) || 100, 250));
-  const { data, error } = await supabase.from("license_keys").select("key,name,deviceid,expireat,status,created_at").order("created_at", { ascending: false }).limit(limit);
+  const { data, error } = await supabase.from("license_keys").select("key,name,deviceid,device_group,fingerprint,expireat,status,created_at").order("created_at", { ascending: false }).limit(limit);
   if (error) return res.status(500).json({ status: "error", message: error.message });
   return res.json({ status: "success", licenses: data || [] });
 });
@@ -214,10 +222,12 @@ app.post("/api/admin/create-key", requireAdminOrSession, async (req, res) => {
   if (!requireDb(res)) return;
   const name = clean(req.body.name, 120);
   const deviceid = clean(req.body.deviceid, 200) || null;
+  const deviceGroup = clean(req.body.device_group || req.body.device_token, 240) || null;
+  const fingerprint = clean(req.body.fingerprint, 500) || null;
   const days = Math.max(1, Math.min(Number(req.body.days) || 30, 3650));
   if (!name) return res.status(400).json({ status: "error", message: "name is required" });
   const key = makeKey();
-  const { data, error } = await supabase.from("license_keys").insert({ key, name, deviceid, expireat: addDays(days), status: "active" }).select("key,name,deviceid,expireat,status").single();
+  const { data, error } = await supabase.from("license_keys").insert({ key, name, deviceid, device_group: deviceGroup, fingerprint, expireat: addDays(days), status: "active" }).select("key,name,deviceid,device_group,fingerprint,expireat,status").single();
   if (error) return res.status(500).json({ status: "error", message: error.message });
   return res.json({ status: "success", key: data.key, license: data });
 });
