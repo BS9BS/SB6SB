@@ -243,7 +243,8 @@ router.all("/license_features.php", async (req, res) => {
   const fingerprint = value(req, "fingerprint");
   const { data: license, error } = await supabase.from("license_keys").select("id,status,expireat,device_group,fingerprint").eq("key", licenseKey).maybeSingle();
   let boundError = null;
-  if (!error && license && deviceGroup && license.device_group && license.device_group !== deviceGroup) {
+  const sameFingerprint = Boolean(!error && license && license.fingerprint && fingerprint && license.fingerprint === fingerprint);
+  if (!error && license && deviceGroup && license.device_group && license.device_group !== deviceGroup && !sameFingerprint) {
     return res.status(403).json({ status: false, ok: false, message: "another_device", features: {} });
   }
   if (!error && license && license.fingerprint && fingerprint && license.fingerprint !== fingerprint) {
