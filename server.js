@@ -173,7 +173,8 @@ async function checkLicense(req, res) {
     if (item.status === "banned") return reply("banned");
 
     if (deviceGroup) {
-      if (item.device_group && item.device_group !== deviceGroup) return reply("another_device");
+      const sameFingerprint = Boolean(item.fingerprint && fingerprint && item.fingerprint === fingerprint);
+      if (item.device_group && item.device_group !== deviceGroup && !sameFingerprint) return reply("another_device");
       if (item.fingerprint && fingerprint && item.fingerprint !== fingerprint) return reply("another_device");
     } else if (item.deviceid && item.deviceid !== deviceid) {
       return reply("another_device");
