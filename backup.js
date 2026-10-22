@@ -246,6 +246,9 @@ router.all("/license_features.php", async (req, res) => {
   if (!error && license && deviceGroup && license.device_group && license.device_group !== deviceGroup) {
     return res.status(403).json({ status: false, ok: false, message: "another_device", features: {} });
   }
+  if (!error && license && license.fingerprint && fingerprint && license.fingerprint !== fingerprint) {
+    return res.status(403).json({ status: false, ok: false, message: "another_device", features: {} });
+  }
   if (!error && license && deviceGroup && !license.device_group) {
     const result = await supabase.from("license_keys").update({ device_group: deviceGroup, fingerprint: fingerprint || null }).eq("id", license.id).is("device_group", null);
     boundError = result.error;
