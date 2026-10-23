@@ -191,8 +191,8 @@ async function findBackup(req, res) {
   const licenseKey = value(req, "license_key", "key");
   let query = supabase.from("backups").select("*").limit(1);
   if (id) query = query.eq("id", id);
-  else if (fileName && licenseKey) query = query.eq("file_name", fileName).eq("license_key", licenseKey);
-  else if (licenseKey) query = query.eq("license_key", licenseKey).order("created_at", { ascending: true });
+  else if (fileName && licenseKey) query = query.eq("file_name", fileName).ilike("license_key", licenseKey);
+  else if (licenseKey) query = query.ilike("license_key", licenseKey).order("created_at", { ascending: true });
   else return null;
   const { data, error } = await query.maybeSingle();
   if (error || !data) return null;
