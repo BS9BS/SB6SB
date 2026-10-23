@@ -119,7 +119,10 @@ async function listBackups(req, res) {
   const deviceid = value(req, "deviceid", "device_id");
   const keyword = value(req, "keyword", "q", "search").replace(/[(),]/g, " ").replace(/\s+/g, " ").trim().slice(0, 120);
   let query = supabase.from("backups").select("*").order("created_at", { ascending: false }).limit(100);
-  if (licenseKey) query = query.eq("license_key", licenseKey);
+  // Always restrict results to the active license. The global endpoint only
+  // changes the endpoint name; it must never expose other licenses' backups.
+  if (licenseKey) query = query.ilike("license_key", licenseKey);
+  else return res.status(400).json({ status: false, message: "license_key is required" });
   if (deviceid) query = query.eq("deviceid", deviceid);
   if (keyword) query = query.or(`file_name.ilike.%${keyword}%,deviceid.ilike.%${keyword}%`);
   const { data, error } = await query;
