@@ -1,6 +1,8 @@
 const express = require("express");
 const multer = require("multer");
 const crypto = require("crypto");
+const fs = require("fs");
+const path = require("path");
 const { createClient } = require("@supabase/supabase-js");
 
 const router = express.Router();
@@ -269,6 +271,26 @@ router.all("/license_features.php", async (req, res) => {
   };
   return res.json({ status: Boolean(active), ok: Boolean(active), features });
 });
-router.all("/update_info.php", (req, res) => res.json({ status: true, ok: true }));
+function updateConfig() {
+  const fallback = { version_code: 17, apk_url: "", message: "" };
+  try {
+    const file = path.join(__dirname, "update.json");
+    if (fs.existsSync(file)) Object.assign(fallback, JSON.parse(fs.readFileSync(file, "utf8")));
+  } catch (error) {
+    console.error("update config error", error.message);
+  }
+  if (process.env.UPDATE_VERSION_CODE) fallback.version_code = Number(process.env.UPDATE_VERSION_CODE) || fallback.version_code;
+  if (process.env.UPDATE_APK_URL) fallback.apk_url = String(process.env.UPDATE_APK_URL);
+  if (process.env.UPDATE_MESSAGE) fallback.message = String(process.env.UPDATE_MESSAGE);
+  return {
+    status: true,
+    ok: true,
+    version_code: Number(fallback.version_code) || 17,
+    apk_url: String(fallback.apk_url || ""),
+    message: String(fallback.message || "")
+  };
+}
+
+router.all("/update_info.php", (req, res) => res.json(updateConfig()));
 
 module.exports = router;
