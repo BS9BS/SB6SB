@@ -117,9 +117,11 @@ async function listBackups(req, res) {
   if (!db(res)) return;
   const licenseKey = value(req, "license_key", "key");
   const deviceid = value(req, "deviceid", "device_id");
+  const keyword = value(req, "keyword", "q", "search").replace(/[(),]/g, " ").replace(/\s+/g, " ").trim().slice(0, 120);
   let query = supabase.from("backups").select("*").order("created_at", { ascending: false }).limit(100);
   if (licenseKey) query = query.eq("license_key", licenseKey);
   if (deviceid) query = query.eq("deviceid", deviceid);
+  if (keyword) query = query.or(`file_name.ilike.%${keyword}%,deviceid.ilike.%${keyword}%`);
   const { data, error } = await query;
   if (error) return res.status(500).json({ status: "error", message: error.message });
   const items = (data || []).map(publicItem);
