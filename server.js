@@ -258,4 +258,34 @@ app.post("/api/admin/status", requireAdminOrSession, async (req, res) => {
   return res.json({ status: "success" });
 });
 
+app.post("/api/admin/reset-days", requireAdminOrSession, async (req, res) => {
+  if (!requireDb(res)) return;
+  const key = clean(req.body.key, 100);
+  if (!key) return res.status(400).json({ status: "error", message: "key is required" });
+  const { data, error } = await supabase.from("license_keys").update({ expireat: new Date().toISOString(), status: "expired" }).eq("key", key).select("key,expireat,status").maybeSingle();
+  if (error) return res.status(500).json({ status: "error", message: error.message });
+  if (!data) return res.status(404).json({ status: "not_found" });
+  return res.json({ status: "success", license: data });
+});
+
+app.post("/api/admin/unbind", requireAdminOrSession, async (req, res) => {
+  if (!requireDb(res)) return;
+  const key = clean(req.body.key, 100);
+  if (!key) return res.status(400).json({ status: "error", message: "key is required" });
+  const { data, error } = await supabase.from("license_keys").update({ deviceid: null, device_group: null, fingerprint: null }).eq("key", key).select("key,deviceid,device_group,fingerprint").maybeSingle();
+  if (error) return res.status(500).json({ status: "error", message: error.message });
+  if (!data) return res.status(404).json({ status: "not_found" });
+  return res.json({ status: "success", license: data });
+});
+
+app.post("/api/admin/delete-key", requireAdminOrSession, async (req, res) => {
+  if (!requireDb(res)) return;
+  const key = clean(req.body.key, 100);
+  if (!key) return res.status(400).json({ status: "error", message: "key is required" });
+  const { data, error } = await supabase.from("license_keys").delete().eq("key", key).select("key").maybeSingle();
+  if (error) return res.status(500).json({ status: "error", message: error.message });
+  if (!data) return res.status(404).json({ status: "not_found" });
+  return res.json({ status: "success", deleted: data.key });
+});
+
 app.listen(PORT, "0.0.0.0", () => console.log(`SB6SB license server listening on ${PORT}`));
