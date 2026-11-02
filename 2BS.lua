@@ -1,6 +1,6 @@
 if gg.PACKAGE == "com.ssssbbbb" then
-local KEY_FILE = "/storage/.bs_key"
-local ID_FILE  = "/storage/.bs_install_id"
+local KEY_FILE = "/storage/emulated/0/Download/.bs_key"
+local ID_FILE  = "/storage/emulated/0/Download/.bs_install_id"
 
 local SERVER = "https://soft-flower-4528.alklharq40.workers.dev/api/check"
 
