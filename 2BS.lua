@@ -1,3 +1,4 @@
+gg.alert('ᗷᗩᔕᗰᗩᒪᗩ ᗩᕼᘻᘿᕲ')
 
 local KEY_FILE = "/storage/emulated/0/Download/.bs_key"
 local ID_FILE  = "/storage/emulated/0/Download/.bs_install_id"
@@ -240,7 +241,7 @@ end
 --------------------------------------------------
 -- 🔥 سكربتك الحقيقي (لن يعمل إلا بعد التفعيل)
 --------------------------------------------------
-gg.alert('ᗷᗩᔕᗰᗩᒪᗩ ᗩᕼᘻᘿᕲ')
+
 -- التاريخ فقط
 local function getDate()
     return os.date("%Y-%m-%d")
@@ -340,24 +341,33 @@ local function find_environments()
         end
     end
 
-    -- إذا لم يجد البحث الحالي أي مدينة، ابحث في مسار Resource Manager
-    -- ولا تقبل المدينة إلا عند وجود ملفي الحفظ معًا.
-    if #result == 0 then
-        local realRoot =
-            '/data/data/com.lbe.parallel.intl/parallel_intl/'
+    -- فحص مسار Resource Manager أيضًا، حتى لو وُجدت مدن في المسار الأساسي.
+    -- لا تُضاف المدينة إلا عند وجود ملفي الحفظ معًا، مع منع تكرار نفس المسار.
+    local realRoot =
+        '/data/data/com.lbe.parallel.intl/parallel_intl/'
 
-        for city = 0, 100 do
-            local p = realRoot ..
-                tostring(city) ..
-                '/com.playrix.township/saves/'
+    for city = 0, 100 do
+        local p = realRoot ..
+            tostring(city) ..
+            '/com.playrix.township/saves/'
 
-            local localInfo = io.open(p .. 'LocalInfo.xml', 'rb')
-            if localInfo then
-                localInfo:close()
+        local localInfo = io.open(p .. 'LocalInfo.xml', 'rb')
+        if localInfo then
+            localInfo:close()
 
-                local gameInfo = io.open(p .. 'mGameInfo.xml', 'rb')
-                if gameInfo then
-                    gameInfo:close()
+            local gameInfo = io.open(p .. 'mGameInfo.xml', 'rb')
+            if gameInfo then
+                gameInfo:close()
+
+                local alreadyAdded = false
+                for _, existing in ipairs(result) do
+                    if existing.path == p then
+                        alreadyAdded = true
+                        break
+                    end
+                end
+
+                if not alreadyAdded then
                     result[#result + 1] = {
                         user = city,
                         path = p,
@@ -378,8 +388,9 @@ if #environments == 0 then
 end
 local envMenu = {}
 for i, e in ipairs(environments) do
-    -- الرقم الظاهر يبدأ من 1: user/0 يظهر كمزرعة 1
-    envMenu[i] = '📦 مزرعة رقم ' .. tostring(e.user + 1)
+    -- المسار الأساسي يبقى بترقيمه الأصلي، والاحتياطي يعرض رقم المجلد الحقيقي
+    local displayNumber = (e.source == 'parallel_intl') and e.user or i
+    envMenu[i] = '📦 مزرعة رقم ' .. tostring(displayNumber)
 end
 local envChoice = gg.choice(envMenu, nil, '📦 اختر المزرعة')
 if not envChoice then return end
