@@ -1,4 +1,4 @@
-if gg.PACKAGE == "com.ssssbbbb" then
+
 local KEY_FILE = "/storage/emulated/0/Download/.bs_key"
 local ID_FILE  = "/storage/emulated/0/Download/.bs_install_id"
 
@@ -4208,6 +4208,3 @@ while true do
 ]])
 
 
-else
-	gg.alert('🎲قم بتحميل الجاردن الخاص بكروب سنه اولى تطوير 🎲')
-end
