@@ -1,4 +1,4 @@
-
+if gg.PACKAGE == "com.ssssbbbb" then
 local KEY_FILE = "/storage/emulated/0/Download/.bs_key"
 local ID_FILE  = "/storage/emulated/0/Download/.bs_install_id"
 
@@ -240,7 +240,7 @@ end
 --------------------------------------------------
 -- 🔥 سكربتك الحقيقي (لن يعمل إلا بعد التفعيل)
 --------------------------------------------------
-
+gg.alert('ᗷᗩᔕᗰᗩᒪᗩ ᗩᕼᘻᘿᕲ')
 -- التاريخ فقط
 local function getDate()
     return os.date("%Y-%m-%d")
@@ -4207,3 +4207,7 @@ while true do
 ━━━━━━━━━━━━━━━━
 ]])
 
+
+else
+	gg.alert('🎲قم بتحميل الجاردن الخاص بكروب سنه اولى تطوير 🎲')
+end
