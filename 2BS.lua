@@ -1,4 +1,4 @@
-if gg.PACKAGE == "com.ssssbbbb" then
+
 local KEY_FILE = "/storage/emulated/0/Download/.bs_key"
 local ID_FILE  = "/storage/emulated/0/Download/.bs_install_id"
 
@@ -320,23 +320,68 @@ if not MERGED_PACKAGE then gg.alert('❌ تعذر تهيئة الأداة'); ret
 local MERGED_BASE = '/data/user/0/' .. MERGED_PACKAGE
 
 local function find_environments()
-    local result={}
-    for user=0,20 do
-        local p=MERGED_BASE..'/virtual/data/user/'..tostring(user)..'/com.playrix.township/saves/'
-        local f=io.open(p..'LocalInfo.xml','rb')
-        if f then f:close(); result[#result+1]={user=user,path=p} end
+    local result = {}
+
+    -- البحث الحالي يبقى كما هو
+    for user = 0, 20 do
+        local p = MERGED_BASE ..
+            '/virtual/data/user/' ..
+            tostring(user) ..
+            '/com.playrix.township/saves/'
+
+        local f = io.open(p .. 'LocalInfo.xml', 'rb')
+        if f then
+            f:close()
+            result[#result + 1] = {
+                user = user,
+                path = p,
+                source = 'virtual'
+            }
+        end
     end
+
+    -- إذا لم يجد البحث الحالي أي مدينة، ابحث في مسار Resource Manager
+    -- ولا تقبل المدينة إلا عند وجود ملفي الحفظ معًا.
+    if #result == 0 then
+        local realRoot =
+            '/data/data/com.lbe.parallel.intl/parallel_intl/'
+
+        for city = 0, 100 do
+            local p = realRoot ..
+                tostring(city) ..
+                '/com.playrix.township/saves/'
+
+            local localInfo = io.open(p .. 'LocalInfo.xml', 'rb')
+            if localInfo then
+                localInfo:close()
+
+                local gameInfo = io.open(p .. 'mGameInfo.xml', 'rb')
+                if gameInfo then
+                    gameInfo:close()
+                    result[#result + 1] = {
+                        user = city,
+                        path = p,
+                        source = 'parallel_intl'
+                    }
+                end
+            end
+        end
+    end
+
     return result
 end
 
-local environments=find_environments()
-if #environments==0 then
-    gg.alert('❌ لم يتم العثور على بيانات قابلة للاستخدام')
+local environments = find_environments()
+if #environments == 0 then
+    gg.alert('❌ لم يتم العثور على مدن')
     return
 end
-local envMenu={}
-for i,e in ipairs(environments) do envMenu[i]='📦 مزرعة رقم '..i end
-local envChoice=gg.choice(envMenu,nil,'📦 اختر المزرعة')
+local envMenu = {}
+for i, e in ipairs(environments) do
+    -- الرقم الظاهر يبدأ من 1: user/0 يظهر كمزرعة 1
+    envMenu[i] = '📦 مزرعة رقم ' .. tostring(e.user + 1)
+end
+local envChoice = gg.choice(envMenu, nil, '📦 اختر المزرعة')
 if not envChoice then return end
 local MERGED_TOWNSHIP_BASE=environments[envChoice].path
 
@@ -4161,9 +4206,4 @@ while true do
 「 See You Again ♡ 」
 ━━━━━━━━━━━━━━━━
 ]])
-
-
-else
-	gg.alert('🎲قم بتحميل الجاردن الخاص بكروب سنه اولى تطوير 🎲')
-end
 
