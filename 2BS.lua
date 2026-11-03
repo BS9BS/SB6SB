@@ -1409,7 +1409,7 @@ return function()
     end)
     if not ok then
         local err = tostring(result)
-        -- تم تعطيل نسخ الخطأ إلى الحافظة
+        if gg.copyText then gg.copyText(err, false) end
         gg.alert("❌ حدث خطأ أثناء العملية")
     end
 end
@@ -1973,7 +1973,10 @@ local function show_error(
         )
 
     if c == 1 then
-        -- تم تعطيل نسخ رسالة الخطأ إلى الحافظة
+        gg.copyText(
+            text,
+            true
+        )
     end
 end
 
@@ -2816,7 +2819,9 @@ end
 
 local function copyError(text)
     text = tostring(text or "")
-    -- تم تعطيل النسخ إلى الحافظة
+    if gg.copyText then
+        gg.copyText(text, false)
+    end
 end
 
 --------------------------------------------------
@@ -4212,4 +4217,3 @@ while true do
 ━━━━━━━━━━━━━━━━
 ]])
 gg.alert('🎲قم بتحميل الجاردن الخاص بكروب سنه اولى تطوير 🎲')
-
