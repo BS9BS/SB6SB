@@ -1,244 +1,266 @@
 if gg.PACKAGE == "com.ssssbbbb" then
-local KEY_FILE = "/storage/emulated/0/Download/.bs_key"
-local ID_FILE  = "/storage/emulated/0/Download/.bs_install_id"
-
-local SERVER = "https://soft-flower-4528.alklharq40.workers.dev/api/check"
+--------------------------------------------------
+-- 📁 المسارات
+--------------------------------------------------
+local SAVE_ID_FILE     = "/storage/emulated/0/Download/.gg_install_id.txt"
+local SAVE_TIME_FILE   = "/storage/emulated/0/Download/.gg_activate_time.txt"
+local SAVE_LAST_FILE   = "/storage/emulated/0/Download/.gg_last_run.txt"
+local SAVE_FIRST_RUN   = "/storage/emulated/0/Download/.gg_first_run.txt"
+local SAVE_WARN_FILE   = "/storage/emulated/0/Download/.gg_warned.txt"
 
 --------------------------------------------------
--- 🆔 توليد / جلب Install ID
+-- ⏳ الإعدادات
 --------------------------------------------------
-local function generateID()
-    local chars = "abcdef0123456789"
-    local id = ""
-
-    for i = 1, 16 do
-        local r = math.random(1, #chars)
-        id = id .. string.sub(chars, r, r)
-    end
-
-    return id
+local EXPIRE_DAYS = 10
+local EXPIRE_SECONDS = EXPIRE_DAYS * 86400
+local TIME_MARGIN = 3600 -- ساعة سماح
+local function hiddenSecret()
+  local enc = {23,20,6,24,20,31,20,10,6,20,29,16,7,10,14,16,2,10,105,106,105,110}
+  local key = 85
+  local s = {}
+  for i = 1, #enc do
+    s[i] = string.char(bit32.bxor(enc[i], key))
+  end
+  return table.concat(s)
 end
 
+local BASE_SECRET = hiddenSecret()
+
+--------------------------------------------------
+-- 🔑 SECRET ديناميكي (يتغير كل 20 يوم)
+--------------------------------------------------
+local function getDynamicSecret()
+  local cycle = math.floor(os.time() / EXPIRE_SECONDS)
+  return BASE_SECRET .. "_" .. cycle
+end
+
+--------------------------------------------------
+-- 🔢 Hash (مطابق لأداة التوليد)
+--------------------------------------------------
+function simpleHash(text)
+  local hash = 5381
+
+  for i = 1, #text do
+    local c = string.byte(text, i)
+    hash = ((hash * 33) ~ c + (c << 5)) % 2147483647
+  end
+
+  hash = (hash ~ (hash >> 16)) * 2246822519
+  hash = hash % 1000000007
+
+  return tostring(math.abs(hash))
+end
+
+--------------------------------------------------
+-- 🆔 توليد ID
+--------------------------------------------------
+function randomID()
+  local t = {}
+  for i = 1, 16 do
+    t[i] = string.format("%x", math.random(0, 15))
+  end
+  return table.concat(t)
+end
+
+--------------------------------------------------
+-- ♻️ إعادة ضبط كاملة (كود جديد)
+--------------------------------------------------
+local function fullReset(msg)
+  os.remove(SAVE_TIME_FILE)
+  os.remove(SAVE_LAST_FILE)
+  os.remove(SAVE_FIRST_RUN)
+  os.remove(SAVE_WARN_FILE)
+  gg.alert(msg .. "\n\n🔁 تم إنشاء معرف جديد\n📋 انسخه واطلب كودًا جديدًا")
+end
+
+--------------------------------------------------
+-- 🔒 فحص التلاعب بالتاريخ
+--------------------------------------------------
+local function checkTimeIntegrity()
+  local now = os.time()
+  local f = io.open(SAVE_LAST_FILE, "r")
+
+  if f then
+    local last = tonumber(f:read("*l"))
+    f:close()
+    if last and now + TIME_MARGIN < last then
+      fullReset("⛔ تم اكتشاف إرجاع التاريخ للخلف")
+      os.exit()
+    end
+  end
+
+  f = io.open(SAVE_LAST_FILE, "w")
+  f:write(now)
+  f:close()
+end
+
+checkTimeIntegrity()
+
+--------------------------------------------------
+-- 🆔 Install ID (جهاز فقط)
+--------------------------------------------------
 local function getInstallID()
-    local f = io.open(ID_FILE, "r")
-
-    if f then
-        local id = f:read("*a")
-        f:close()
-        return id
-    end
-
-    local newID = generateID()
-
-    local f2 = io.open(ID_FILE, "w")
-    f2:write(newID)
-    f2:close()
-
-    return newID
-end
-
---------------------------------------------------
--- 💾 حفظ / تحميل المفتاح
---------------------------------------------------
-local function saveKey(key)
-    local f = io.open(KEY_FILE, "w")
-    f:write(key)
+  local f = io.open(SAVE_ID_FILE, "r")
+  if f then
+    local id = f:read("*l")
     f:close()
-end
-
-local function loadKey()
-    local f = io.open(KEY_FILE, "r")
-    if not f then return nil end
-
-    local k = f:read("*a")
-    f:close()
-
-    return k:gsub("%s+", "")
-end
-
---------------------------------------------------
--- 🌐 الاتصال بالسيرفر
---------------------------------------------------
-local function checkServer(key, deviceid)
-    local url = SERVER .. "?key=" .. key .. "&deviceid=" .. deviceid
-    local res = gg.makeRequest(url)
-
-    if not res or not res.content then
-        return nil
-    end
-
-    return res.content
+    return id
+  end
+  math.randomseed(os.time())
+  local id = randomID()
+  f = io.open(SAVE_ID_FILE, "w")
+  f:write(id)
+  f:close()
+  return id
 end
 
 --------------------------------------------------
--- 🔍 تحليل الرد
+-- 💾 وقت التفعيل
 --------------------------------------------------
-local function parseResponse(res)
-
-    if string.find(res, '"status"%s*:%s*"active"') then
-        return "active"
-
-    elseif string.find(res, '"status"%s*:%s*"expired"') then
-        return "expired"
-
-    elseif string.find(res, '"status"%s*:%s*"banned"') then
-        return "banned"
-
-    elseif string.find(res, '"status"%s*:%s*"another_device"') then
-        return "device"
-
-    else
-        return "invalid"
-    end
-end
-local function getJsonNumber(json, key)
-    local value = json:match('"' .. key .. '"%s*:%s*(%d+)')
-    return tonumber(value) or 0
+local function saveActivationTime()
+  local f = io.open(SAVE_TIME_FILE, "w")
+  f:write(os.time())
+  f:close()
 end
 
-local function showRemainingTime(res)
-    local days = getJsonNumber(res, "days")
-    local hours = getJsonNumber(res, "hours")
-    local minutes = getJsonNumber(res, "minutes")
-
-    gg.alert(
-        "⏳ الوقت المتبقي:\n\n" ..
-        "🗓 " .. days .. " يوم\n" ..
-        "⏰ " .. hours .. " ساعة\n" ..
-        "⏱ " .. minutes .. " دقيقة"
-    )
-
-    if days == 1 then
-        gg.alert(
-            "⚠️ تنبيه\n\n" ..
-            "بقي يوم واحد فقط على انتهاء الاشتراك."
-        )
-    end
-end
---------------------------------------------------
--- 🔐 شاشة التفعيل
---------------------------------------------------
-local function activate()
-    local id = getInstallID()
-
-    gg.setVisible(true)
-
-    while true do
-        if gg.isVisible(true) then
-            gg.setVisible(false)
-
-            local choice = gg.choice({
-                "📋 نسخ Install ID",
-                "🔑 إدخال كود التفعيل",
-                "❌ خروج"
-            }, nil, "🔐 نظام التفعيل")
-
-            -- إذا ضغط إلغاء، أخفِ القائمة وانتظر فتح GG مرة أخرى
-            if choice == nil then
-                gg.setVisible(false)
-
-            elseif choice == 1 then
-                gg.copyText(id)
-                gg.toast("📋 تم نسخ ID")
-
-            elseif choice == 2 then
-                local input = gg.prompt({"أدخل كود التفعيل"}, nil, {"text"})
-                if input then
-                    local key = input[1]
-                    local res = checkServer(key, id)
-
-                    if not res then
-                        gg.alert("❌ فشل الاتصال")
-                    else
-                        local status = parseResponse(res)
-
-if status == "active" then
-    saveKey(key)
-    showRemainingTime(res)
-    return true
-
-                        elseif status == "device" then
-                            gg.alert("❌ هذا المفتاح لجهاز آخر")
-
-                        elseif status == "expired" then
-                            gg.alert("❌ الاشتراك منتهي")
-
-                        elseif status == "banned" then
-                            gg.alert("🚫 محظور")
-
-                        else
-                            gg.alert("❌ مفتاح غير صالح")
-                        end
-                    end
-                end
-
-            elseif choice == 3 then
-                os.exit()
-            end
-        end
-        gg.sleep(200)
-    end
+local function getActivationTime()
+  local f = io.open(SAVE_TIME_FILE, "r")
+  if not f then return nil end
+  local t = tonumber(f:read("*l"))
+  f:close()
+  return t
 end
 
 --------------------------------------------------
--- 🔎 التحقق عند التشغيل
+-- ⛔ فحص الانتهاء
 --------------------------------------------------
-local function verify()
+local function checkExpire()
+  local start = getActivationTime()
+  if not start then return false end
 
-    local key = loadKey()
-    if not key then
-        return false
-    end
+  local now = os.time()
 
-    local id = getInstallID()
-    local res = checkServer(key, id)
-
-    if not res then
-        return false
-    end
-
-    local status = parseResponse(res)
-
-if status == "active" then
-    showRemainingTime(res)
-    return true
-    else
-        os.remove(KEY_FILE)
-        return false
-    end
-end
-
---------------------------------------------------
--- 🚀 التشغيل الرئيسي
---------------------------------------------------
-local function main()
-
-    local ok = verify()
-
-    if not ok then
-        local activated = activate()
-
-        if not activated then
-            return false
-        end
-    else
-        gg.toast("✅ مفعل")
-    end
-
-    return true
-end
-
---------------------------------------------------
--- ▶️ تشغيل النظام
---------------------------------------------------
-local run = main()
-
-if not run then
+  if now + TIME_MARGIN < start then
+    fullReset("⛔ تم التلاعب بتاريخ الجهاز")
     os.exit()
+  end
+
+  if (now - start) > EXPIRE_SECONDS then
+    fullReset("⏳ انتهت مدة التفعيل (10يوم)")
+    return false
+  end
+
+  return true
 end
 
 --------------------------------------------------
--- 🔥 سكربتك الحقيقي (لن يعمل إلا بعد التفعيل)
+-- ⏱️ حساب الوقت المتبقي
+--------------------------------------------------
+local function getRemainingTimeFull()
+  local start = getActivationTime()
+  if not start then return 0,0,0 end
+
+  local remaining = EXPIRE_SECONDS - (os.time() - start)
+  if remaining < 0 then remaining = 0 end
+
+  local d = math.floor(remaining / 86400)
+  remaining = remaining % 86400
+  local h = math.floor(remaining / 3600)
+  remaining = remaining % 3600
+  local m = math.floor(remaining / 60)
+
+  return d, h, m
+end
+
+--------------------------------------------------
+-- 🔍 فحص أولي
+--------------------------------------------------
+local activated = checkExpire()
+
+--------------------------------------------------
+-- 🆔 USER ID (ثابت لكل البرامج)
+--------------------------------------------------
+local DEVICE_ID = getInstallID()
+
+--------------------------------------------------
+-- 🔐 EXPECTED CODE
+--------------------------------------------------
+local SECRET = getDynamicSecret()
+local EXPECTED_CODE = simpleHash(DEVICE_ID .. SECRET)
+
+--------------------------------------------------
+-- 🔐 نظام التفعيل
+--------------------------------------------------
+if not activated then
+  gg.setVisible(true)
+  while true do
+    if gg.isVisible(true) then
+      gg.setVisible(false)
+
+      local c = gg.choice({
+        "📋 نسخ USER ID",
+        "🔑 إدخال كود التفعيل",
+        "❌ خروج"
+      }, nil,
+      "🔐 نظام التفعيل")
+
+      if c == 3 then os.exit() end
+
+      if c == 1 then
+        gg.copyText(DEVICE_ID)
+        gg.toast("📋 تم نسخ المعرف")
+
+      elseif c == 2 then
+        local i = gg.prompt({"🌸تواصل مع الادمن:"},{""},{"text"})
+        if i then
+          if i[1]:gsub("%s+", "") == EXPECTED_CODE then
+            saveActivationTime()
+            local f = io.open(SAVE_FIRST_RUN, "w")
+            f:write("1")
+            f:close()
+            gg.toast("✅ تم التفعيل بنجاح")
+            break
+          else
+            gg.alert("❌ كود غير صحيح")
+          end
+        end
+      end
+    end
+    gg.sleep(200)
+  end
+end
+
+--------------------------------------------------
+-- ⏳ عرض العداد كل تشغيل
+--------------------------------------------------
+local d, h, m = getRemainingTimeFull()
+gg.alert(
+  "⏳ الوقت المتبقي:\n\n" ..
+  "🗓 " .. d .. " يوم\n" ..
+  "⏰ " .. h .. " ساعة\n" ..
+  "⏱ " .. m .. " دقيقة"
+)
+
+--------------------------------------------------
+-- ⚠️ تنبيه عند بقاء يوم واحد
+--------------------------------------------------
+local warned = io.open(SAVE_WARN_FILE, "r")
+if d == 1 and not warned then
+  local wf = io.open(SAVE_WARN_FILE, "w")
+  wf:write("1")
+  wf:close()
+
+  gg.alert(
+    "⚠️ تنبيه هام\n\n" ..
+    "لم يتبقَّ لكم سوى يوم واحد ⏳\n\n" ..
+    "📢 تفاعلوا على منشورات الفيسبوك\n" ..
+    "لكي تحصلوا على الرمز الجديد"
+  )
+end
+if warned then warned:close() end
+
+--------------------------------------------------
+-- ✅ انتهى نظام التفعيل والحماية
 --------------------------------------------------
 
 -- التاريخ فقط
