@@ -1,60 +1,29 @@
 if gg.PACKAGE == "com.ssssbbbb" then
 --------------------------------------------------
--- 📁 المسارات
+-- 🔐 تفعيل عبر سيرفر Render + لوحة المفاتيح
 --------------------------------------------------
-local SAVE_ID_FILE     = "/storage/emulated/0/Download/.gg_install_id.txt"
-local SAVE_TIME_FILE   = "/storage/emulated/0/Download/.gg_activate_time.txt"
-local SAVE_LAST_FILE   = "/storage/emulated/0/Download/.gg_last_run.txt"
-local SAVE_FIRST_RUN   = "/storage/emulated/0/Download/.gg_first_run.txt"
-local SAVE_WARN_FILE   = "/storage/emulated/0/Download/.gg_warned.txt"
+-- ضع هنا رابط خدمة Render فقط، بدون /api في النهاية.
+-- مثال: https://sb6sb-license.onrender.com
+local LICENSE_SERVER = "https://bs-service.onrender.com"
+local CHECK_URL = LICENSE_SERVER .. "/api/check"
 
---------------------------------------------------
--- ⏳ الإعدادات
---------------------------------------------------
-local EXPIRE_DAYS = 10
-local EXPIRE_SECONDS = EXPIRE_DAYS * 86400
-local TIME_MARGIN = 3600 -- ساعة سماح
-local function hiddenSecret()
-  local enc = {23,20,6,24,20,31,20,10,6,20,29,16,7,10,14,16,2,10,105,106,105,110}
-  local key = 85
-  local s = {}
-  for i = 1, #enc do
-    s[i] = string.char(bit32.bxor(enc[i], key))
-  end
-  return table.concat(s)
+local SAVE_ID_FILE   = "/storage/emulated/0/Download/.gg_install_id.txt"
+local SAVE_KEY_FILE  = "/storage/emulated/0/Download/.gg_license_key.txt"
+local SAVE_LAST_FILE = "/storage/emulated/0/Download/.gg_last_run.txt"
+local TIME_MARGIN    = 3600
+
+local function trim(value)
+  return tostring(value or ""):gsub("^%s+", ""):gsub("%s+$", "")
 end
 
-local BASE_SECRET = hiddenSecret()
-
---------------------------------------------------
--- 🔑 SECRET ديناميكي (يتغير كل 20 يوم)
---------------------------------------------------
-local function getDynamicSecret()
-  local cycle = math.floor(os.time() / EXPIRE_SECONDS)
-  return BASE_SECRET .. "_" .. cycle
+local function urlEncode(value)
+  value = tostring(value or "")
+  return (value:gsub("([^%w%-_%.~])", function(c)
+    return string.format("%%%02X", string.byte(c))
+  end))
 end
 
---------------------------------------------------
--- 🔢 Hash (مطابق لأداة التوليد)
---------------------------------------------------
-function simpleHash(text)
-  local hash = 5381
-
-  for i = 1, #text do
-    local c = string.byte(text, i)
-    hash = ((hash * 33) ~ c + (c << 5)) % 2147483647
-  end
-
-  hash = (hash ~ (hash >> 16)) * 2246822519
-  hash = hash % 1000000007
-
-  return tostring(math.abs(hash))
-end
-
---------------------------------------------------
--- 🆔 توليد ID
---------------------------------------------------
-function randomID()
+local function randomID()
   local t = {}
   for i = 1, 16 do
     t[i] = string.format("%x", math.random(0, 15))
@@ -62,205 +31,166 @@ function randomID()
   return table.concat(t)
 end
 
---------------------------------------------------
--- ♻️ إعادة ضبط كاملة (كود جديد)
---------------------------------------------------
-local function fullReset(msg)
-  os.remove(SAVE_TIME_FILE)
-  os.remove(SAVE_LAST_FILE)
-  os.remove(SAVE_FIRST_RUN)
-  os.remove(SAVE_WARN_FILE)
-  gg.alert(msg .. "\n\n🔁 تم إنشاء معرف جديد\n📋 انسخه واطلب كودًا جديدًا")
+local function getInstallID()
+  local f = io.open(SAVE_ID_FILE, "r")
+  if f then
+    local id = trim(f:read("*l"))
+    f:close()
+    if id ~= "" then return id end
+  end
+  math.randomseed(os.time() + math.floor(os.clock() * 1000))
+  local id = randomID()
+  f = io.open(SAVE_ID_FILE, "w")
+  if f then f:write(id); f:close() end
+  return id
 end
 
---------------------------------------------------
--- 🔒 فحص التلاعب بالتاريخ
---------------------------------------------------
+local function readSavedKey()
+  local f = io.open(SAVE_KEY_FILE, "r")
+  if not f then return "" end
+  local key = trim(f:read("*l"))
+  f:close()
+  return key
+end
+
+local function saveKey(key)
+  local f = io.open(SAVE_KEY_FILE, "w")
+  if f then f:write(key); f:close() end
+end
+
 local function checkTimeIntegrity()
   local now = os.time()
   local f = io.open(SAVE_LAST_FILE, "r")
-
   if f then
     local last = tonumber(f:read("*l"))
     f:close()
     if last and now + TIME_MARGIN < last then
-      fullReset("⛔ تم اكتشاف إرجاع التاريخ للخلف")
+      gg.alert("⛔ تم اكتشاف إرجاع تاريخ الجهاز للخلف")
       os.exit()
     end
   end
-
   f = io.open(SAVE_LAST_FILE, "w")
-  f:write(now)
-  f:close()
+  if f then f:write(now); f:close() end
+end
+
+-- استخراج بسيط للحقول التي يعيدها server.js، ولا يعتمد على مكتبة خارجية.
+local function jsonString(body, field)
+  local value = body:match('"' .. field .. '"%s*:%s*"(.-)"')
+  return value or ""
+end
+
+local function jsonNumber(body, field)
+  local value = body:match('"' .. field .. '"%s*:%s*(-?%d+%.?%d*)')
+  return tonumber(value)
+end
+
+local function requestLicense(key, deviceID)
+  local url = CHECK_URL .. "?key=" .. urlEncode(key) .. "&deviceid=" .. urlEncode(deviceID)
+  local response = gg.makeRequest(url, {
+    ["Accept"] = "application/json",
+    ["User-Agent"] = "SB6SB-GameGuardian/1.0",
+    ["Cache-Control"] = "no-cache"
+  })
+  if not response then
+    return nil, "تعذر الاتصال بالسيرفر. تحقق من الإنترنت ورابط Render."
+  end
+  local code = tonumber(response.code or 0) or 0
+  local body = tostring(response.content or "")
+  if code < 200 or code >= 300 then
+    return nil, "❌ تعذر التحقق من المفتاح حاليًا، حاول مرة أخرى"
+  end
+  local status = jsonString(body, "status")
+  if status ~= "active" then
+    local messages = {
+      invalid = "❌ المفتاح غير صحيح",
+      banned = "⛔ المستخدم محظور",
+      expired = "⏳ انتهت مدة التفعيل",
+      another_device = "📱 المفتاح مربوط بجهاز آخر",
+      rate_limited = "⏱️ محاولات كثيرة، انتظر قليلًا"
+    }
+    return nil, messages[status] or "❌ تعذر قبول المفتاح، حاول مرة أخرى"
+  end
+  return {
+    name = jsonString(body, "name"),
+    expire_at = jsonString(body, "expire_at"),
+    days = jsonNumber(body, "days") or 0,
+    hours = jsonNumber(body, "hours") or 0,
+    minutes = jsonNumber(body, "minutes") or 0
+  }
+end
+
+local function activate(deviceID)
+  while true do
+    -- يتم إرسال USER ID تلقائيًا من الجهاز؛ المستخدم يدخل المفتاح فقط.
+    local input = gg.prompt({"🔑 أدخل مفتاح التفعيل الصادر من لوحة التحكم:"}, {""}, {"text"})
+    -- زر إلغاء/رجوع يعيد المستخدم إلى الواجهة الأولى بدل إغلاق السكربت.
+    if not input then return nil end
+    local key = trim(input[1]):upper()
+    if key == "" then
+      gg.alert("❌ يجب إدخال مفتاح التفعيل")
+    else
+      gg.toast("🔄 جارٍ التحقق من المفتاح...")
+      local license, err = requestLicense(key, deviceID)
+      if license then
+        saveKey(key)
+        gg.alert("✅ تم التفعيل بنجاح\n\n" ..
+          "👤 " .. (license.name ~= "" and license.name or "مستخدم") .. "\n" ..
+          "⏳ المتبقي: " .. license.days .. " يوم و " .. license.hours .. " ساعة و " .. license.minutes .. " دقيقة")
+        return license
+      end
+      gg.alert(err)
+    end
+  end
+end
+
+local function verifySavedLicense(deviceID)
+  local key = readSavedKey()
+  if key == "" then return nil end
+  local license, err = requestLicense(key, deviceID)
+  if license then return license end
+  -- لا نحذف المفتاح عند الحظر أو الانتهاء؛ بعد فك الحظر أو التمديد
+  -- ستتم المصادقة عليه تلقائيًا في التشغيل التالي دون إدخاله من جديد.
+  return nil, err
 end
 
 checkTimeIntegrity()
-
---------------------------------------------------
--- 🆔 Install ID (جهاز فقط)
---------------------------------------------------
-local function getInstallID()
-  local f = io.open(SAVE_ID_FILE, "r")
-  if f then
-    local id = f:read("*l")
-    f:close()
-    return id
-  end
-  math.randomseed(os.time())
-  local id = randomID()
-  f = io.open(SAVE_ID_FILE, "w")
-  f:write(id)
-  f:close()
-  return id
-end
-
---------------------------------------------------
--- 💾 وقت التفعيل
---------------------------------------------------
-local function saveActivationTime()
-  local f = io.open(SAVE_TIME_FILE, "w")
-  f:write(os.time())
-  f:close()
-end
-
-local function getActivationTime()
-  local f = io.open(SAVE_TIME_FILE, "r")
-  if not f then return nil end
-  local t = tonumber(f:read("*l"))
-  f:close()
-  return t
-end
-
---------------------------------------------------
--- ⛔ فحص الانتهاء
---------------------------------------------------
-local function checkExpire()
-  local start = getActivationTime()
-  if not start then return false end
-
-  local now = os.time()
-
-  if now + TIME_MARGIN < start then
-    fullReset("⛔ تم التلاعب بتاريخ الجهاز")
-    os.exit()
-  end
-
-  if (now - start) > EXPIRE_SECONDS then
-    fullReset("⏳ انتهت مدة التفعيل (10يوم)")
-    return false
-  end
-
-  return true
-end
-
---------------------------------------------------
--- ⏱️ حساب الوقت المتبقي
---------------------------------------------------
-local function getRemainingTimeFull()
-  local start = getActivationTime()
-  if not start then return 0,0,0 end
-
-  local remaining = EXPIRE_SECONDS - (os.time() - start)
-  if remaining < 0 then remaining = 0 end
-
-  local d = math.floor(remaining / 86400)
-  remaining = remaining % 86400
-  local h = math.floor(remaining / 3600)
-  remaining = remaining % 3600
-  local m = math.floor(remaining / 60)
-
-  return d, h, m
-end
-
---------------------------------------------------
--- 🔍 فحص أولي
---------------------------------------------------
-local activated = checkExpire()
-
---------------------------------------------------
--- 🆔 USER ID (ثابت لكل البرامج)
---------------------------------------------------
 local DEVICE_ID = getInstallID()
-
---------------------------------------------------
--- 🔐 EXPECTED CODE
---------------------------------------------------
-local SECRET = getDynamicSecret()
-local EXPECTED_CODE = simpleHash(DEVICE_ID .. SECRET)
-
---------------------------------------------------
--- 🔐 نظام التفعيل
---------------------------------------------------
-if not activated then
-  gg.setVisible(true)
-  while true do
-    if gg.isVisible(true) then
-      gg.setVisible(false)
-
-      local c = gg.choice({
-        "📋 نسخ USER ID",
-        "🔑 إدخال كود التفعيل",
-        "❌ خروج"
-      }, nil,
-      "🔐 نظام التفعيل")
-
-      if c == 3 then os.exit() end
-
-      if c == 1 then
-        gg.copyText(DEVICE_ID)
-        gg.toast("📋 تم نسخ المعرف")
-
-      elseif c == 2 then
-        local i = gg.prompt({"🌸تواصل مع الادمن:"},{""},{"text"})
-        if i then
-          if i[1]:gsub("%s+", "") == EXPECTED_CODE then
-            saveActivationTime()
-            local f = io.open(SAVE_FIRST_RUN, "w")
-            f:write("1")
-            f:close()
-            gg.toast("✅ تم التفعيل بنجاح")
-            break
-          else
-            gg.alert("❌ كود غير صحيح")
-          end
-        end
-      end
-    end
+local license, licenseError = verifySavedLicense(DEVICE_ID)
+while not license do
+  if licenseError then
+    gg.alert("⚠️ تعذر التحقق من المفتاح\n\n" .. licenseError)
+    licenseError = nil
+  end
+  -- بعد الإلغاء لا نفتح GameGuardian تلقائيًا؛ ننتظر المستخدم حتى يفتحه.
+  while not gg.isVisible(true) do
     gg.sleep(200)
   end
+  gg.setVisible(false)
+
+  local choice = gg.choice({"🔑 إدخال مفتاح التفعيل", "📋 نسخ USER ID", "❌ خروج"}, nil, "🔐 نظام التفعيل عبر السيرفر")
+  if choice == 2 then
+    gg.copyText(DEVICE_ID)
+    gg.alert("📋 تم نسخ USER ID\n\nأرسله للأدمن ليصدر لك مفتاحًا من اللوحة.")
+  elseif choice == 3 then
+    os.exit()
+  elseif choice == 1 then
+    license, licenseError = activate(DEVICE_ID)
+  else
+    -- إلغاء/رجوع: لا نغلق السكربت، وننتظر فتح GG لعرض الواجهة مجددًا.
+    gg.toast("ℹ️ افتح GameGuardian مجددًا لعرض واجهة التفعيل")
+  end
 end
 
---------------------------------------------------
--- ⏳ عرض العداد كل تشغيل
---------------------------------------------------
-local d, h, m = getRemainingTimeFull()
-gg.alert(
-  "⏳ الوقت المتبقي:\n\n" ..
+local d = license.days or 0
+local h = license.hours or 0
+local m = license.minutes or 0
+gg.alert("⏳ الوقت المتبقي من السيرفر:\n\n" ..
   "🗓 " .. d .. " يوم\n" ..
   "⏰ " .. h .. " ساعة\n" ..
-  "⏱ " .. m .. " دقيقة"
-)
+  "⏱ " .. m .. " دقيقة")
 
 --------------------------------------------------
--- ⚠️ تنبيه عند بقاء يوم واحد
---------------------------------------------------
-local warned = io.open(SAVE_WARN_FILE, "r")
-if d == 1 and not warned then
-  local wf = io.open(SAVE_WARN_FILE, "w")
-  wf:write("1")
-  wf:close()
-
-  gg.alert(
-    "⚠️ تنبيه هام\n\n" ..
-    "لم يتبقَّ لكم سوى يوم واحد ⏳\n\n" ..
-    "📢 تفاعلوا على منشورات الفيسبوك\n" ..
-    "لكي تحصلوا على الرمز الجديد"
-  )
-end
-if warned then warned:close() end
-
---------------------------------------------------
--- ✅ انتهى نظام التفعيل والحماية
+-- ✅ انتهى نظام التفعيل عبر السيرفر
 --------------------------------------------------
 
 -- التاريخ فقط
@@ -721,55 +651,31 @@ local function post_file(url, data)
     end)
 
     if not ok then
-        error(
-            "فشل طلب HTTP\n\n" ..
-            tostring(response)
-        )
+        error("تعذر الاتصال بالسيرفر أثناء تنفيذ العملية")
     end
 
     -- فحص نوع الاستجابة
     if type(response) == "string" then
-        error(
-            "فشل الاتصال أو قراءة الاستجابة\n\n" ..
-            "الاستجابة النصية:\n" ..
-            response:sub(1, 2000)
-        )
+        error("تعذر قراءة نتيجة العملية من السيرفر")
     end
 
     if type(response) ~= "table" then
-        error(
-            "نوع استجابة غير متوقع: " ..
-            type(response)
-        )
+        error("تعذر قراءة نتيجة العملية من السيرفر")
     end
 
     local code = tonumber(response.code)
     local content = response.content
 
     if not code then
-        error(
-            "لا توجد حالة HTTP صالحة\n\n" ..
-            "نوع المحتوى: " ..
-            type(content) ..
-            "\nالرد:\n" ..
-            tostring(content):sub(1, 2000)
-        )
+        error("تعذر التحقق من نتيجة العملية")
     end
 
     if code < 200 or code >= 300 then
-        error(
-            "رفض السيرفر الطلب\n\n" ..
-            "HTTP: " .. tostring(code) ..
-            "\nالرد:\n" ..
-            tostring(content):sub(1, 2000)
-        )
+        error("تعذر تنفيذ العملية، حاول مرة أخرى")
     end
 
     if type(content) ~= "string" or content == "" then
-        error(
-            "السيرفر أعاد محتوى فارغًا\n" ..
-            "HTTP: " .. tostring(code)
-        )
+        error("لم تصل نتيجة من السيرفر، حاول مرة أخرى")
     end
 
     return content
@@ -1962,10 +1868,7 @@ local function post(
     if code < 200 or code >= 300 then
 
         return nil,
-            "HTTP Error: " ..
-            tostring(code) ..
-            "\n\n" ..
-            content
+            "تعذر تنفيذ العملية، حاول مرة أخرى"
     end
 
     return content
@@ -1980,6 +1883,16 @@ local function show_error(
     title,
     message
 )
+
+    -- لا نعرض أي رد تقني أو محتوى خام قادم من السيرفر.
+    message = tostring(message or "")
+    if message:find("HTTP", 1, true)
+        or message:find("السيرفر", 1, true)
+        or message:find("استجابة", 1, true)
+        or message:find("Response", 1, true)
+        or message:find("response", 1, true) then
+        message = "تعذر تنفيذ العملية، حاول مرة أخرى"
+    end
 
     local text =
         "❌ " ..
@@ -2081,10 +1994,7 @@ local function analyze(
     if data.ok == false then
 
         return nil,
-            tostring(
-                data.error or
-                "فشل تحليل الملفات."
-            )
+            "فشل تحليل الملفات، تأكد من الملفات وحاول مرة أخرى."
     end
 
     return data
@@ -2841,6 +2751,14 @@ end
 
 local function copyError(text)
     text = tostring(text or "")
+    if text:find("HTTP", 1, true)
+        or text:find("Response", 1, true)
+        or text:find("response", 1, true)
+        or text:find("السيرفر لم", 1, true)
+        or text:find("السيرفر أعاد", 1, true)
+        or text:find("الاستجابة", 1, true) then
+        text = "❌ تعذر تنفيذ العملية، حاول مرة أخرى"
+    end
     if gg.copyText then
         gg.copyText(text, false)
     end
@@ -3814,13 +3732,7 @@ local function decodeFriends()
             )
 
         copyError(
-            "❌ فشل فك ملف المدن\n\n" ..
-            "HTTP: " ..
-            tostring(
-                response.code
-            ) ..
-            "\n\n" ..
-            content
+            "❌ تعذر فك ملف المدن، حاول مرة أخرى"
         )
 
         return nil
@@ -3850,8 +3762,7 @@ local function decodeFriends()
     if not ok then
 
         copyError(
-            "❌ السيرفر لم يستطع فك الملف\n\n" ..
-            content
+            "❌ تعذر فك الملف، تأكد من البيانات وحاول مرة أخرى"
         )
 
         return nil
@@ -4002,19 +3913,14 @@ local function requestFetchCity(
             )
 
         return nil,
-            "❌ HTTP " ..
-            tostring(
-                response.code
-            ) ..
-            "\n\n" ..
-            content
+            "❌ تعذر جلب المدينة، حاول مرة أخرى"
 
     end
 
     if not response.content then
 
         return nil,
-            "❌ السيرفر أعاد Response فارغ"
+            "❌ لم تصل بيانات المدينة، حاول مرة أخرى"
 
     end
 
@@ -4085,11 +3991,7 @@ local function fetchOne(
     ) then
 
         copyError(
-            "❌ السيرفر لم يُرجع XML\n\n" ..
-            xml:sub(
-                1,
-                5000
-            )
+            "❌ تعذر قراءة بيانات المدينة، حاول مرة أخرى"
         )
 
         return false
@@ -4101,13 +4003,7 @@ local function fetchOne(
     ) then
 
         copyError(
-            "⚠️ XML غير مكتمل\n\n" ..
-            xml:sub(
-                math.max(
-                    1,
-                    #xml - 5000
-                )
-            )
+            "⚠️ بيانات المدينة غير مكتملة، حاول مرة أخرى"
         )
 
         return false
@@ -4164,14 +4060,14 @@ local function run_source(src, label)
     local chunk, err = load(src, label)
 
     if not chunk then
-        gg.alert("❌ خطأ تحميل الكود:\n\n" .. tostring(err))
+        gg.alert("❌ تعذر تحميل الأداة، حاول مرة أخرى")
         return
     end
 
     local ok, result = pcall(chunk)
 
     if not ok then
-        gg.alert("❌ خطأ تشغيل الأداة:\n\n" .. tostring(result))
+        gg.alert("❌ حدث خطأ أثناء تشغيل الأداة، حاول مرة أخرى")
         return
     end
 
@@ -4179,10 +4075,7 @@ local function run_source(src, label)
         local ok2, err2 = pcall(result)
 
         if not ok2 then
-            gg.alert(
-                "❌ خطأ تنفيذ الأداة:\n\n" ..
-                tostring(err2)
-            )
+            gg.alert("❌ حدث خطأ أثناء تنفيذ الأداة، حاول مرة أخرى")
         end
     end
 end
