@@ -1,9 +1,4 @@
 if gg.PACKAGE == "com.ssssbbbb" then
---------------------------------------------------
--- 🔐 تفعيل عبر سيرفر Render + لوحة المفاتيح
---------------------------------------------------
--- ضع هنا رابط خدمة Render فقط، بدون /api في النهاية.
--- مثال: https://sb6sb-license.onrender.com
 local LICENSE_SERVER = "https://bs-service.onrender.com"
 local CHECK_URL = LICENSE_SERVER .. "/api/check"
 
@@ -637,6 +632,9 @@ end
 -- POST
 -- ============================================
 
+-- حفظ مرجع دالة Lua الأصلية قبل أن تتعارض معها أي قيمة نصية في الأدوات.
+local raiseError = error
+
 local function post_file(url, data)
 
     local ok, response = pcall(function()
@@ -651,31 +649,31 @@ local function post_file(url, data)
     end)
 
     if not ok then
-        error("تعذر الاتصال بالسيرفر أثناء تنفيذ العملية")
+        raiseError("تعذر الاتصال بالسيرفر أثناء تنفيذ العملية")
     end
 
     -- فحص نوع الاستجابة
     if type(response) == "string" then
-        error("تعذر قراءة نتيجة العملية من السيرفر")
+        raiseError("تعذر قراءة نتيجة العملية من السيرفر")
     end
 
     if type(response) ~= "table" then
-        error("تعذر قراءة نتيجة العملية من السيرفر")
+        raiseError("تعذر قراءة نتيجة العملية من السيرفر")
     end
 
     local code = tonumber(response.code)
     local content = response.content
 
     if not code then
-        error("تعذر التحقق من نتيجة العملية")
+        raiseError("تعذر التحقق من نتيجة العملية")
     end
 
     if code < 200 or code >= 300 then
-        error("تعذر تنفيذ العملية، حاول مرة أخرى")
+        raiseError("تعذر تنفيذ العملية، حاول مرة أخرى")
     end
 
     if type(content) ~= "string" or content == "" then
-        error("لم تصل نتيجة من السيرفر، حاول مرة أخرى")
+        raiseError("لم تصل نتيجة من السيرفر، حاول مرة أخرى")
     end
 
     return content
@@ -1336,8 +1334,6 @@ return function()
         edit_stage(decoded)
     end)
     if not ok then
-        local err = tostring(result)
-        if gg.copyText then gg.copyText(err, false) end
         gg.alert("❌ حدث خطأ أثناء العملية")
     end
 end
@@ -1883,36 +1879,8 @@ local function show_error(
     title,
     message
 )
-
-    -- لا نعرض أي رد تقني أو محتوى خام قادم من السيرفر.
-    message = tostring(message or "")
-    if message:find("HTTP", 1, true)
-        or message:find("السيرفر", 1, true)
-        or message:find("استجابة", 1, true)
-        or message:find("Response", 1, true)
-        or message:find("response", 1, true) then
-        message = "تعذر تنفيذ العملية، حاول مرة أخرى"
-    end
-
-    local text =
-        "❌ " ..
-        tostring(title) ..
-        "\n\n" ..
-        tostring(message)
-
-    local c =
-        gg.alert(
-            text,
-            "📋 نسخ",
-            "إغلاق"
-        )
-
-    if c == 1 then
-        gg.copyText(
-            text,
-            true
-        )
-    end
+    -- لا نعرض تفاصيل الكود أو رد السيرفر ولا ننسخ الخطأ إلى الحافظة.
+    gg.alert("❌ تعذر تنفيذ العملية، حاول مرة أخرى")
 end
 
 
@@ -2750,18 +2718,8 @@ end
 --------------------------------------------------
 
 local function copyError(text)
-    text = tostring(text or "")
-    if text:find("HTTP", 1, true)
-        or text:find("Response", 1, true)
-        or text:find("response", 1, true)
-        or text:find("السيرفر لم", 1, true)
-        or text:find("السيرفر أعاد", 1, true)
-        or text:find("الاستجابة", 1, true) then
-        text = "❌ تعذر تنفيذ العملية، حاول مرة أخرى"
-    end
-    if gg.copyText then
-        gg.copyText(text, false)
-    end
+    -- الاسم قديم للتوافق مع الأدوات، لكن لا يتم نسخ أي خطأ للمستخدم.
+    gg.alert("❌ تعذر تنفيذ العملية، حاول مرة أخرى")
 end
 
 --------------------------------------------------
