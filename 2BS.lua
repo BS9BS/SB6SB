@@ -386,6 +386,10 @@ local EDIT_URL =
 
 local OPTIONS = {
 
+
+
+
+
     {
         label = "『تعديل الـمـسـتـوى 』", 
         type = "number",
@@ -492,6 +496,16 @@ local OPTIONS = {
         label ="『الملصقات』", 
         type = "checkbox",
         edit = "chatEmojis"
+    },
+    {
+        label = "『فتح التذكرة الذهبية + جميع الجوائز』",
+        type = "checkbox",
+        edit = "goldenTicket"
+    },
+    {
+        label = "『فتح التذكرة الذهبية 2 + المسارين』",
+        type = "checkbox",
+        edit = "goldenTicket2"
     }
 
 }
@@ -937,7 +951,11 @@ end
 
     for _, edit in ipairs(edits) do
 
-        if edit.type == "level" then
+        if edit.type == "goldenTicket" then
+            message = message .. "✔ تم فتح التذكرة الذهبية وجميع الجوائز\n"
+        elseif edit.type == "goldenTicket2" then
+            message = message .. "✔ تم فتح التذكرة الذهبية 2 والمسارين\n"
+        elseif edit.type == "level" then
 
             local level =
                 tonumber(
