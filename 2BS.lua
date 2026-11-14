@@ -87,7 +87,7 @@ local function requestLicense(key, deviceID)
     ["Cache-Control"] = "no-cache"
   })
   if not response then
-    return nil, "تعذر الاتصال بالسيرفر. تحقق من الإنترنت ورابط Render."
+    return nil, "تعذر تنفيذ العملية حاليًا"
   end
   local code = tonumber(response.code or 0) or 0
   local body = tostring(response.content or "")
@@ -269,16 +269,23 @@ local MERGED_BASE = '/data/user/0/' .. MERGED_PACKAGE
 local function find_environments()
     local result = {}
 
-    -- البحث الحالي يبقى كما هو
+    local function hasNonEmptyFile(path)
+        local f = io.open(path, 'rb')
+        if not f then return false end
+        local firstByte = f:read(1)
+        f:close()
+        return firstByte ~= nil
+    end
+
+    -- لا تعرض المزرعة إلا إذا كان ملفا الحفظ موجودين وغير فارغين.
     for user = 0, 20 do
         local p = MERGED_BASE ..
             '/virtual/data/user/' ..
             tostring(user) ..
             '/com.playrix.township/saves/'
 
-        local f = io.open(p .. 'LocalInfo.xml', 'rb')
-        if f then
-            f:close()
+        if hasNonEmptyFile(p .. 'LocalInfo.xml') and
+           hasNonEmptyFile(p .. 'mGameInfo.xml') then
             result[#result + 1] = {
                 user = user,
                 path = p,
@@ -287,39 +294,25 @@ local function find_environments()
         end
     end
 
-    -- فحص مسار Resource Manager أيضًا، حتى لو وُجدت مدن في المسار الأساسي.
-    -- لا تُضاف المدينة إلا عند وجود ملفي الحفظ معًا، مع منع تكرار نفس المسار.
-    local realRoot =
-        '/data/data/com.lbe.parallel.intl/parallel_intl/'
-
+    -- فحص مسار Resource Manager أيضًا، مع منع تكرار نفس المسار.
+    local realRoot = '/data/data/com.lbe.parallel.intl/parallel_intl/'
     for city = 0, 100 do
-        local p = realRoot ..
-            tostring(city) ..
-            '/com.playrix.township/saves/'
-
-        local localInfo = io.open(p .. 'LocalInfo.xml', 'rb')
-        if localInfo then
-            localInfo:close()
-
-            local gameInfo = io.open(p .. 'mGameInfo.xml', 'rb')
-            if gameInfo then
-                gameInfo:close()
-
-                local alreadyAdded = false
-                for _, existing in ipairs(result) do
-                    if existing.path == p then
-                        alreadyAdded = true
-                        break
-                    end
+        local p = realRoot .. tostring(city) .. '/com.playrix.township/saves/'
+        if hasNonEmptyFile(p .. 'LocalInfo.xml') and
+           hasNonEmptyFile(p .. 'mGameInfo.xml') then
+            local alreadyAdded = false
+            for _, existing in ipairs(result) do
+                if existing.path == p then
+                    alreadyAdded = true
+                    break
                 end
-
-                if not alreadyAdded then
-                    result[#result + 1] = {
-                        user = city,
-                        path = p,
-                        source = 'parallel_intl'
-                    }
-                end
+            end
+            if not alreadyAdded then
+                result[#result + 1] = {
+                    user = city,
+                    path = p,
+                    source = 'parallel_intl'
+                }
             end
         end
     end
@@ -329,7 +322,7 @@ end
 
 local environments = find_environments()
 if #environments == 0 then
-    gg.alert('❌ لم يتم العثور على مدن')
+    gg.alert('❌ لم يتم العثور على مزرعة صالحة: تأكد من وجود ملفي LocalInfo.xml و mGameInfo.xml وأنهما غير فارغين.')
     return
 end
 local envMenu = {}
@@ -385,6 +378,10 @@ local EDIT_URL =
 -- ============================================
 
 local OPTIONS = {
+
+
+
+
 
     {
         label = "『تعديل الـمـسـتـوى 』", 
@@ -492,10 +489,39 @@ local OPTIONS = {
         label ="『الملصقات』", 
         type = "checkbox",
         edit = "chatEmojis"
+    },
+    {
+        label = "『فتح التذكرة الذهبية + جميع الجوائز』",
+        type = "checkbox",
+        edit = "goldenTicket"
+    },
+    {
+        label = "『فتح التذكرة الذهبية 2 + المسارين』",
+        type = "checkbox",
+        edit = "goldenTicket2"
+    },
+    {
+        label = "『قطار القمح عدد 1 』",
+        type = "checkbox",
+        edit = "trainPresetWheat"
+    },
+    {
+        label = "『قطار التاج عدد 500  』",
+        type = "checkbox",
+        edit = "trainPresetDiadem"
+    },
+    {
+        label = "『قطار الجزر 9999』",
+        type = "checkbox",
+        edit = "trainPresetCarrot"
     }
 
 }
 
+-- GameGuardian may not expose error() globally; use assert to raise a catchable Lua error.
+local function raiseError(message)
+    assert(false, tostring(message or "Unknown error"))
+end
 
 -- ============================================
 -- READ FILE
@@ -511,8 +537,8 @@ local function read_file(path)
 
     if not f then
 
-        error(
-            "تعذر فتح الملف"
+        raiseError(
+            "تعذر فتح ملف الإدخال: " .. tostring(path)
         )
 
     end
@@ -524,8 +550,8 @@ local function read_file(path)
 
     if not data or #data == 0 then
 
-        error(
-            "الملف فارغ"
+        raiseError(
+            "ملف الإدخال فارغ: " .. tostring(path) .. "\nتأكد أن حفظ اللعبة مكتمل وأن المزرعة المختارة صحيحة."
         )
 
     end
@@ -602,29 +628,61 @@ end
 -- WRITE FILE
 -- ============================================
 
-local function write_file(
-    path,
-    data
-)
-
-    local f =
-        io.open(
-            path,
-            "wb"
-        )
-
-    if not f then
-
-        error(
-            "تعذر إنشاء ملف الناتج"
-        )
-
+local function write_file(path, data)
+    if type(data) ~= "string" or #data == 0 then
+        raiseError("لن تتم كتابة الملف لأن البيانات المستلمة فارغة أو غير صالحة: " .. tostring(path))
     end
 
-    f:write(data)
+    local tempPath = path .. ".tmp"
+    local backupPath = path .. ".bak"
 
-    f:close()
+    -- اكتب الناتج في ملف مؤقت، ولا تلمس ملف الحفظ الأصلي بعد.
+    local temp, tempErr = io.open(tempPath, "wb")
+    if not temp then raiseError("تعذر إنشاء الملف المؤقت: " .. tostring(tempErr)) end
+    local writeOk, writeErr = pcall(function()
+        temp:write(data)
+        temp:flush()
+        temp:close()
+    end)
+    if not writeOk then
+        pcall(function() temp:close() end)
+        raiseError("فشلت كتابة الملف المؤقت: " .. tostring(writeErr))
+    end
 
+    local verify = io.open(tempPath, "rb")
+    local saved = verify and verify:read("*a") or nil
+    if verify then verify:close() end
+    if saved ~= data then
+        raiseError("فشل التحقق من الملف المؤقت؛ لم يتم تغيير ملف الحفظ الأصلي.")
+    end
+
+    -- احتفظ بنسخة من الملف الأصلي قبل الاستبدال.
+    local originalFile = io.open(path, "rb")
+    if not originalFile then
+        raiseError("تعذر قراءة ملف الحفظ الأصلي لإنشاء نسخة احتياطية: " .. tostring(path))
+    end
+    local originalData = originalFile:read("*a")
+    originalFile:close()
+    if not originalData or #originalData == 0 then
+        raiseError("ملف الحفظ الأصلي فارغ؛ أُلغي الاستبدال لحمايته.")
+    end
+
+    local backup, backupErr = io.open(backupPath, "wb")
+    if not backup then raiseError("تعذر إنشاء النسخة الاحتياطية: " .. tostring(backupErr)) end
+    local backupOk, backupWriteErr = pcall(function()
+        backup:write(originalData)
+        backup:flush()
+        backup:close()
+    end)
+    if not backupOk then
+        pcall(function() backup:close() end)
+        raiseError("فشل حفظ النسخة الاحتياطية؛ بقي الملف الأصلي دون تغيير: " .. tostring(backupWriteErr))
+    end
+
+    local renameOk, renameErr = os.rename(tempPath, path)
+    if not renameOk then
+        raiseError("فشل استبدال ملف الحفظ؛ الأصل محفوظ والنسخة الاحتياطية هنا: " .. backupPath .. "\n" .. tostring(renameErr))
+    end
 end
 
 
@@ -632,8 +690,10 @@ end
 -- POST
 -- ============================================
 
--- حفظ مرجع دالة Lua الأصلية قبل أن تتعارض معها أي قيمة نصية في الأدوات.
-local raiseError = error
+local function saveErrorLog(details)
+    -- لا يتم حفظ تفاصيل الأخطاء أو المسارات محليًا.
+    return false
+end
 
 local function post_file(url, data)
 
@@ -649,7 +709,7 @@ local function post_file(url, data)
     end)
 
     if not ok then
-        raiseError("تعذر الاتصال بالسيرفر أثناء تنفيذ العملية")
+        raiseError("تعذر تنفيذ العملية حاليًا")
     end
 
     -- فحص نوع الاستجابة
@@ -669,11 +729,11 @@ local function post_file(url, data)
     end
 
     if code < 200 or code >= 300 then
-        raiseError("تعذر تنفيذ العملية، حاول مرة أخرى")
+        raiseError("تعذر تنفيذ العملية حاليًا")
     end
 
     if type(content) ~= "string" or content == "" then
-        raiseError("لم تصل نتيجة من السيرفر، حاول مرة أخرى")
+        raiseError("تعذر تنفيذ العملية حاليًا")
     end
 
     return content
@@ -729,6 +789,11 @@ local function build_edits_json(
 
     local regataCount = nil
     local regataPoint = nil
+    local trainProductId = nil
+    local trainProductCount = nil
+    local trainOrderBlue = false
+    local trainClearBox = false
+    local trainPreset = nil
 
 
     -- ========================================
@@ -751,6 +816,24 @@ local function build_edits_json(
                     edit.value
                 )
 
+        elseif edit.type == "trainProductId" then
+            trainProductId = tostring(edit.value or "")
+        elseif edit.type == "trainProductCount" then
+            trainProductCount = tonumber(edit.value)
+        elseif edit.type == "trainOrderBlue" then
+            trainOrderBlue = edit.value == true
+        elseif edit.type == "trainClearBox" then
+            trainClearBox = edit.value == true
+        elseif edit.type == "trainPresetWheat" then
+            if trainPreset ~= nil then raiseError("اختر خيار قطار واحد فقط.") end
+            trainPreset = {productId = "wheat", productCount = 1}
+        elseif edit.type == "trainPresetDiadem" then
+            if trainPreset ~= nil then raiseError("اختر خيار قطار واحد فقط.") end
+            trainPreset = {productId = "diadem", productCount = 500}
+        elseif edit.type == "trainPresetCarrot" then
+            if trainPreset ~= nil then raiseError("اختر خيار قطار واحد فقط.") end
+            trainPreset = {productId = "carrot", productCount = 9999}
+
         end
 
     end
@@ -763,7 +846,15 @@ local function build_edits_json(
     for _, edit in ipairs(edits) do
 
         if edit.type ~= "regataTaskCount" and
-           edit.type ~= "regataTaskPoint" then
+           edit.type ~= "regataTaskPoint" and
+           edit.type ~= "trainProductId" and
+           edit.type ~= "trainProductCount" and
+           edit.type ~= "trainOrderBlue" and
+           edit.type ~= "trainClearBox" and
+           edit.type ~= "trainAll" and
+           edit.type ~= "trainPresetWheat" and
+           edit.type ~= "trainPresetDiadem" and
+           edit.type ~= "trainPresetCarrot" then
 
             local key =
                 json_escape(
@@ -821,6 +912,27 @@ local function build_edits_json(
 
     end
 
+    if trainPreset ~= nil then
+        trainProductId = trainPreset.productId
+        trainProductCount = trainPreset.productCount
+        trainOrderBlue = true
+        trainClearBox = true
+    end
+
+    if trainProductId ~= nil or trainProductCount ~= nil then
+        if trainProductId == nil or trainProductId == "" or trainProductCount == nil then
+            raiseError("يجب إدخال نوع المنتج والكمية لمحرر القطار.")
+        end
+        table.insert(
+            parts,
+            '"trainAll":{' ..
+            '"productId":"' .. json_escape(trainProductId) .. '",' ..
+            '"productCount":' .. tostring(math.floor(trainProductCount)) .. ',' ..
+            '"orderBlue":' .. (trainOrderBlue and "true" or "false") .. ',' ..
+            '"clearBox":' .. (trainClearBox and "true" or "false") ..
+            '}'
+        )
+    end
 
     return "{" ..
            table.concat(
@@ -938,7 +1050,6 @@ end
     for _, edit in ipairs(edits) do
 
         if edit.type == "level" then
-
             local level =
                 tonumber(
                     edit.value
@@ -1095,7 +1206,7 @@ end
         local missing_var = err_text:match("Var:%s*([%w_]+)")
 
         if not missing_var then
-            error(err_text)
+            raiseError(err_text)
         end
 
         -- مطابقة اسم المتغير الوارد من السيرفر مع نوع التعديل.
@@ -1112,7 +1223,7 @@ end
         if not skipped_index then
             -- إذا لم نتمكن من تحديد التعديل المرتبط بالمتغير،
             -- لا نتجاهل الخطأ عشوائيًا حتى لا نُفسد النتيجة.
-            error(err_text)
+            raiseError(err_text)
         end
 
         local skipped = table.remove(pending_edits, skipped_index)
@@ -1129,7 +1240,7 @@ end
             details = details .. "\nتم تخطي " .. #skipped_edits ..
                 " تعديل/تعديلات بسبب متغيرات مفقودة."
         end
-        error(details)
+        raiseError(details)
     end
 
     -- ========================================
@@ -1152,7 +1263,17 @@ local message =
 
     for _, edit in ipairs(edits) do
 
-        if edit.type == "level" then
+        if edit.type == "goldenTicket" then
+            message = message .. "✔ تم فتح التذكرة الذهبية وجميع الجوائز\n"
+        elseif edit.type == "goldenTicket2" then
+            message = message .. "✔ تم فتح التذكرة الذهبية 2 والمسارين\n"
+        elseif edit.type == "trainPresetWheat" then
+            message = message .. "✔ تم تطبيق القمح: العدد 1\n"
+        elseif edit.type == "trainPresetDiadem" then
+            message = message .. "✔ تم تطبيق التاج: العدد 500\n"
+        elseif edit.type == "trainPresetCarrot" then
+            message = message .. "✔ تم تطبيق الجزر: العدد 9999\n"
+        elseif edit.type == "level" then
 
             message =
                 message ..
@@ -1334,6 +1455,8 @@ return function()
         edit_stage(decoded)
     end)
     if not ok then
+        local detail = tostring(result or "حدث خطأ غير معروف")
+        if #detail > 1200 then detail = detail:sub(1, 1200) end
         gg.alert("❌ حدث خطأ أثناء العملية")
     end
 end
@@ -1831,29 +1954,20 @@ local function post(
     contentType
 )
 
-    local r =
-        gg.makeRequest(
+    local requestOk, r = pcall(function()
+        return gg.makeRequest(
             url,
             {
-                ["Content-Type"] =
-                    contentType or
-                    "application/json; charset=utf-8",
-
+                ["Content-Type"] = contentType or "application/json; charset=utf-8",
                 ["Accept"] = "*/*",
-
-                ["User-Agent"] =
-                    "Mozilla/5.0",
-
-                ["Cache-Control"] =
-                    "no-cache"
+                ["User-Agent"] = "Mozilla/5.0",
+                ["Cache-Control"] = "no-cache"
             },
             body
         )
-
-    if not r then
-        return nil,
-            "لم تصل استجابة من السيرفر."
-    end
+    end)
+    if not requestOk then return nil, "تعذر تنفيذ العملية حاليًا" end
+    if not r then return nil, "تعذر تنفيذ العملية حاليًا" end
 
     local code =
         tonumber(r.code or 0) or 0
@@ -1862,9 +1976,7 @@ local function post(
         tostring(r.content or "")
 
     if code < 200 or code >= 300 then
-
-        return nil,
-            "تعذر تنفيذ العملية، حاول مرة أخرى"
+        return nil, "تعذر تنفيذ العملية حاليًا"
     end
 
     return content
@@ -1875,14 +1987,9 @@ end
 -- ERROR
 -- ============================================================
 
-local function show_error(
-    title,
-    message
-)
-    -- لا نعرض تفاصيل الكود أو رد السيرفر ولا ننسخ الخطأ إلى الحافظة.
-    gg.alert("❌ تعذر تنفيذ العملية، حاول مرة أخرى")
+local function show_error(title, message)
+    gg.alert("❌ حدث خطأ أثناء العملية")
 end
-
 
 -- ============================================================
 -- DECODE
@@ -1961,8 +2068,10 @@ local function analyze(
 
     if data.ok == false then
 
+        local detail = tostring(response or "")
+        if #detail > 3000 then detail = detail:sub(1, 3000) .. "\n[تم اختصار الرد]" end
         return nil,
-            "فشل تحليل الملفات، تأكد من الملفات وحاول مرة أخرى."
+            "رفض الخادم الطلب (HTTP 2xx):\n" .. detail
     end
 
     return data
@@ -2718,8 +2827,7 @@ end
 --------------------------------------------------
 
 local function copyError(text)
-    -- الاسم قديم للتوافق مع الأدوات، لكن لا يتم نسخ أي خطأ للمستخدم.
-    gg.alert("❌ تعذر تنفيذ العملية، حاول مرة أخرى")
+    gg.alert("❌ حدث خطأ أثناء العملية")
 end
 
 --------------------------------------------------
@@ -4014,18 +4122,22 @@ return { select = selectFarm, run = runFarm }
 
 ]=]
 
+local function report_tool_error(title, err)
+    gg.alert("❌ حدث خطأ أثناء العملية")
+end
+
 local function run_source(src, label)
     local chunk, err = load(src, label)
 
     if not chunk then
-        gg.alert("❌ تعذر تحميل الأداة، حاول مرة أخرى")
+        report_tool_error("تعذر تحميل الأداة: " .. tostring(label), err)
         return
     end
 
     local ok, result = pcall(chunk)
 
     if not ok then
-        gg.alert("❌ حدث خطأ أثناء تشغيل الأداة، حاول مرة أخرى")
+        report_tool_error("خطأ أثناء تشغيل الأداة: " .. tostring(label), result)
         return
     end
 
@@ -4033,7 +4145,7 @@ local function run_source(src, label)
         local ok2, err2 = pcall(result)
 
         if not ok2 then
-            gg.alert("❌ حدث خطأ أثناء تنفيذ الأداة، حاول مرة أخرى")
+            report_tool_error("خطأ أثناء تنفيذ الأداة: " .. tostring(label), err2)
         end
     end
 end
@@ -4057,8 +4169,13 @@ while true do
                 if not copierOk or type(copierApp) ~= 'table' then
                     gg.alert('❌ تعذر تهيئة الناسخ')
                 else
-                    local selectedFarm = copierApp.select()
-                    if selectedFarm then copierApp.run(selectedFarm) end
+                    local selectOk, selectedFarm = pcall(copierApp.select)
+                    if not selectOk then
+                        report_tool_error("خطأ أثناء الاتصال/اختيار المزرعة", selectedFarm)
+                    elseif selectedFarm then
+                        local runOk, runErr = pcall(copierApp.run, selectedFarm)
+                        if not runOk then report_tool_error("خطأ أثناء تنفيذ النسخ", runErr) end
+                    end
                 end
             end
         elseif choice==2 then run_source(SRC_TOOL,'ملف خاص بالتعديل والسباق ')
