@@ -709,31 +709,31 @@ local function post_file(url, data)
     end)
 
     if not ok then
-        raiseError("تعذر تنفيذ العملية حاليًا")
+        raiseError("فشل طلب السيرفر: " .. tostring(response))
     end
 
     -- فحص نوع الاستجابة
     if type(response) == "string" then
-        raiseError("تعذر قراءة نتيجة العملية من السيرفر")
+        raiseError("رد السيرفر النصي غير المتوقع:\n" .. response)
     end
 
     if type(response) ~= "table" then
-        raiseError("تعذر قراءة نتيجة العملية من السيرفر")
+        raiseError("نوع رد السيرفر غير متوقع: " .. type(response) .. "\nالقيمة: " .. tostring(response))
     end
 
     local code = tonumber(response.code)
     local content = response.content
 
     if not code then
-        raiseError("تعذر التحقق من نتيجة العملية")
+        raiseError("رد السيرفر لا يحتوي على رمز HTTP صالح. المحتوى: " .. tostring(content or "<بدون محتوى>"))
     end
 
     if code < 200 or code >= 300 then
-        raiseError("تعذر تنفيذ العملية حاليًا")
+        raiseError("السيرفر أعاد HTTP " .. tostring(code) .. "\nرد السيرفر:\n" .. tostring(content or "<بدون رد>"))
     end
 
     if type(content) ~= "string" or content == "" then
-        raiseError("تعذر تنفيذ العملية حاليًا")
+        raiseError("رد السيرفر فارغ. رمز HTTP: " .. tostring(code))
     end
 
     return content
@@ -1456,8 +1456,9 @@ return function()
     end)
     if not ok then
         local detail = tostring(result or "حدث خطأ غير معروف")
-        if #detail > 1200 then detail = detail:sub(1, 1200) end
-        gg.alert("❌ حدث خطأ أثناء العملية")
+        if #detail > 4000 then detail = detail:sub(1, 4000) .. "\n... تم اختصار بقية الخطأ" end
+        gg.alert("❌ الخطأ الحقيقي أثناء العملية:\n\n" .. detail)
+        print("[ERROR] " .. detail)
     end
 end
 
@@ -4123,7 +4124,10 @@ return { select = selectFarm, run = runFarm }
 ]=]
 
 local function report_tool_error(title, err)
-    gg.alert("❌ حدث خطأ أثناء العملية")
+    local detail = tostring(err or "حدث خطأ غير معروف")
+    if #detail > 4000 then detail = detail:sub(1, 4000) .. "\n... تم اختصار بقية الخطأ" end
+    gg.alert("❌ " .. tostring(title or "خطأ") .. ":\n\n" .. detail)
+    print("[ERROR] " .. tostring(title or "خطأ") .. ": " .. detail)
 end
 
 local function run_source(src, label)
