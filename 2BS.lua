@@ -688,31 +688,31 @@ local function post_file(url, data)
     end)
 
     if not ok then
-        raiseError("فشل طلب السيرفر: " .. tostring(response))
+        raiseError("تعذر تنفيذ العملية حاليًا")
     end
 
     -- فحص نوع الاستجابة
     if type(response) == "string" then
-        raiseError("رد السيرفر النصي غير المتوقع:\n" .. response)
+        raiseError("تعذر قراءة نتيجة العملية من السيرفر")
     end
 
     if type(response) ~= "table" then
-        raiseError("نوع رد السيرفر غير متوقع: " .. type(response) .. "\nالقيمة: " .. tostring(response))
+        raiseError("تعذر قراءة نتيجة العملية من السيرفر")
     end
 
     local code = tonumber(response.code)
     local content = response.content
 
     if not code then
-        raiseError("رد السيرفر لا يحتوي على رمز HTTP صالح. المحتوى: " .. tostring(content or "<بدون محتوى>"))
+        raiseError("تعذر التحقق من نتيجة العملية")
     end
 
     if code < 200 or code >= 300 then
-        raiseError("السيرفر أعاد HTTP " .. tostring(code) .. "\nرد السيرفر:\n" .. tostring(content or "<بدون رد>"))
+        raiseError("تعذر تنفيذ العملية حاليًا")
     end
 
     if type(content) ~= "string" or content == "" then
-        raiseError("رد السيرفر فارغ. رمز HTTP: " .. tostring(code))
+        raiseError("تعذر تنفيذ العملية حاليًا")
     end
 
     return content
@@ -1434,10 +1434,7 @@ return function()
         edit_stage(decoded)
     end)
     if not ok then
-        local detail = tostring(result or "حدث خطأ غير معروف")
-        if #detail > 4000 then detail = detail:sub(1, 4000) .. "\n... تم اختصار بقية الخطأ" end
-        gg.alert("❌ الخطأ الحقيقي أثناء العملية:\n\n" .. detail)
-        print("[ERROR] " .. detail)
+        gg.alert("❌ حدث خطأ أثناء العملية")
     end
 end
 
@@ -4103,10 +4100,7 @@ return { select = selectFarm, run = runFarm }
 ]=]
 
 local function report_tool_error(title, err)
-    local detail = tostring(err or "حدث خطأ غير معروف")
-    if #detail > 4000 then detail = detail:sub(1, 4000) .. "\n... تم اختصار بقية الخطأ" end
-    gg.alert("❌ " .. tostring(title or "خطأ") .. ":\n\n" .. detail)
-    print("[ERROR] " .. tostring(title or "خطأ") .. ": " .. detail)
+    gg.alert("❌ حدث خطأ أثناء العملية")
 end
 
 local function run_source(src, label)
