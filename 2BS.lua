@@ -634,7 +634,6 @@ local function write_file(path, data)
     end
 
     local tempPath = path .. ".tmp"
-    local backupPath = path .. ".bak"
 
     -- اكتب الناتج في ملف مؤقت، ولا تلمس ملف الحفظ الأصلي بعد.
     local temp, tempErr = io.open(tempPath, "wb")
@@ -656,32 +655,12 @@ local function write_file(path, data)
         raiseError("فشل التحقق من الملف المؤقت؛ لم يتم تغيير ملف الحفظ الأصلي.")
     end
 
-    -- احتفظ بنسخة من الملف الأصلي قبل الاستبدال.
-    local originalFile = io.open(path, "rb")
-    if not originalFile then
-        raiseError("تعذر قراءة ملف الحفظ الأصلي لإنشاء نسخة احتياطية: " .. tostring(path))
-    end
-    local originalData = originalFile:read("*a")
-    originalFile:close()
-    if not originalData or #originalData == 0 then
-        raiseError("ملف الحفظ الأصلي فارغ؛ أُلغي الاستبدال لحمايته.")
-    end
-
-    local backup, backupErr = io.open(backupPath, "wb")
-    if not backup then raiseError("تعذر إنشاء النسخة الاحتياطية: " .. tostring(backupErr)) end
-    local backupOk, backupWriteErr = pcall(function()
-        backup:write(originalData)
-        backup:flush()
-        backup:close()
-    end)
-    if not backupOk then
-        pcall(function() backup:close() end)
-        raiseError("فشل حفظ النسخة الاحتياطية؛ بقي الملف الأصلي دون تغيير: " .. tostring(backupWriteErr))
-    end
+    -- تم إلغاء إنشاء النسخة الاحتياطية بناءً على طلب المستخدم.
+    -- سيتم استبدال الملف الهدف مباشرة بعد التحقق من الملف المؤقت.
 
     local renameOk, renameErr = os.rename(tempPath, path)
     if not renameOk then
-        raiseError("فشل استبدال ملف الحفظ؛ الأصل محفوظ والنسخة الاحتياطية هنا: " .. backupPath .. "\n" .. tostring(renameErr))
+        raiseError("فشل استبدال ملف الحفظ مباشرة: " .. tostring(renameErr))
     end
 end
 
