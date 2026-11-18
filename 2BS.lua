@@ -322,7 +322,7 @@ end
 
 local environments = find_environments()
 if #environments == 0 then
-    gg.alert('❌ لم يتم العثور على مزرعة صالحة: تأكد من وجود ملفي LocalInfo.xml و mGameInfo.xml وأنهما غير فارغين.')
+    gg.alert('❌ من فضلك اغلق المزرعة')
     return
 end
 local envMenu = {}
