@@ -1446,7 +1446,7 @@ local function optionInSection(option, section)
     if section == "race" then
         return option.type ~= "checkbox" or RACE_CHECKBOXES[option.edit] == true
     elseif section == "coupons" then
-        return cat == "✉️القسائم✉️"
+        return cat == " ♡BS♡"
     elseif section == "trains" then
         return option.edit == "trainPresetWheat" or option.edit == "trainPresetDiadem" or option.edit == "trainPresetCarrot"
     elseif section == "lab" then
@@ -1460,7 +1460,7 @@ local function optionInSection(option, section)
         if RACE_CHECKBOXES[option.edit] then return false end
         if option.edit == "trainPresetWheat" or option.edit == "trainPresetDiadem" or option.edit == "trainPresetCarrot" then return false end
         if option.edit == "skins" or option.edit == "allDecor" or option.edit == "unlockAllAvatars" or option.edit == "chatEmojis" or option.edit == "barnMenu" then return false end
-        if cat == "✉️القسائم✉️" or cat == " ♡BS♡" then return false end
+        if cat == " ♡BS♡" or cat == " ♡BS♡" then return false end
         return true
     end
     return true
@@ -2066,7 +2066,7 @@ local function edit_stage(
             elseif option.edit == "allDecor" then
                 decorRequested = true
             elseif option.edit == "resourceItem" then
-                if option.resourceCategory == "✉️القسائم✉️" then
+                if option.resourceCategory == " ♡BS♡" then
                     table.insert(selectedCoupons, {
                         name = option.couponName,
                         label = option.resourceLabel
