@@ -1,4 +1,11 @@
-if gg.PACKAGE == "com.ssssbbbb" then
+local REQUIRED_ENVIRONMENT_PACKAGE = "com.ssssbbbb"
+
+if gg.PACKAGE ~= REQUIRED_ENVIRONMENT_PACKAGE then
+    gg.alert("⚠️ اختر الناسخ الذي تعمل به وليس برامج او اللعاب اخرى")
+    return
+end
+
+if gg.PACKAGE == REQUIRED_ENVIRONMENT_PACKAGE then
 local LICENSE_SERVER = "https://bs-service.onrender.com"
 local CHECK_URL = LICENSE_SERVER .. "/api/check"
 
@@ -87,7 +94,7 @@ local function requestLicense(key, deviceID)
     ["Cache-Control"] = "no-cache"
   })
   if not response then
-    return nil, "تعذر تنفيذ العملية حاليًا"
+    return nil, "تعذر الاتصال بالسيرفر. تحقق من الإنترنت ورابط Render."
   end
   local code = tonumber(response.code or 0) or 0
   local body = tostring(response.content or "")
@@ -117,7 +124,7 @@ end
 local function activate(deviceID)
   while true do
     -- يتم إرسال USER ID تلقائيًا من الجهاز؛ المستخدم يدخل المفتاح فقط.
-    local input = gg.prompt({"🔑 أدخل مفتاح التفعيل الصادر من لوحة التحكم:"}, {""}, {"text"})
+    local input = gg.prompt({"🌺ادخل كود التفعيل الدائم🌺"}, {""}, {"text"})
     -- زر إلغاء/رجوع يعيد المستخدم إلى الواجهة الأولى بدل إغلاق السكربت.
     if not input then return nil end
     local key = trim(input[1]):upper()
@@ -133,7 +140,7 @@ local function activate(deviceID)
           "⏳ المتبقي: " .. license.days .. " يوم و " .. license.hours .. " ساعة و " .. license.minutes .. " دقيقة")
         return license
       end
-      gg.alert(err)
+      gg.alert("❌ تعذر التحقق من المفتاح، حاول مرة أخرى.")
     end
   end
 end
@@ -153,7 +160,7 @@ local DEVICE_ID = getInstallID()
 local license, licenseError = verifySavedLicense(DEVICE_ID)
 while not license do
   if licenseError then
-    gg.alert("⚠️ تعذر التحقق من المفتاح\n\n" .. licenseError)
+    gg.alert("❌ تعذر التحقق من المفتاح، حاول مرة أخرى.")
     licenseError = nil
   end
   -- بعد الإلغاء لا نفتح GameGuardian تلقائيًا؛ ننتظر المستخدم حتى يفتحه.
@@ -162,11 +169,8 @@ while not license do
   end
   gg.setVisible(false)
 
-  local choice = gg.choice({"🔑 إدخال مفتاح التفعيل", "📋 نسخ USER ID", "❌ خروج"}, nil, "🔐 نظام التفعيل عبر السيرفر")
+  local choice = gg.choice({"🔑 إدخال مفتاح التفعيل", "❌ خروج"}, nil, "🔐 نظام التفعيل عبر السيرفر")
   if choice == 2 then
-    gg.copyText(DEVICE_ID)
-    gg.alert("📋 تم نسخ USER ID\n\nأرسله للأدمن ليصدر لك مفتاحًا من اللوحة.")
-  elseif choice == 3 then
     os.exit()
   elseif choice == 1 then
     license, licenseError = activate(DEVICE_ID)
@@ -322,18 +326,38 @@ end
 
 local environments = find_environments()
 if #environments == 0 then
-    gg.alert('❌ من فضلك اغلق المزرعة')
+    gg.alert('⚠️ اختر الناسخ الذي تعمل به اولا')
     return
 end
 local envMenu = {}
 for i, e in ipairs(environments) do
     -- المسار الأساسي يبقى بترقيمه الأصلي، والاحتياطي يعرض رقم المجلد الحقيقي
     local displayNumber = (e.source == 'parallel_intl') and e.user or i
-    envMenu[i] = '📦 مزرعة رقم ' .. tostring(displayNumber)
+    envMenu[i] = '📦 المزرعة' .. tostring(displayNumber)
 end
 local envChoice = gg.choice(envMenu, nil, '📦 اختر المزرعة')
-if not envChoice then return end
+if not envChoice then
+    gg.alert('⚠️ يجب اختيار مزرعة اولا')
+    return
+end
 local MERGED_TOWNSHIP_BASE=environments[envChoice].path
+
+local function isValidEnvironmentPath(path)
+    if type(path) ~= 'string' or path == '' then return false end
+    local function hasData(fileName)
+        local f = io.open(path .. fileName, 'rb')
+        if not f then return false end
+        local data = f:read(1)
+        f:close()
+        return data ~= nil
+    end
+    return hasData('LocalInfo.xml') and hasData('mGameInfo.xml')
+end
+
+if not isValidEnvironmentPath(MERGED_TOWNSHIP_BASE) then
+    gg.alert('⚠️ اختر الناسخ الذي تعمل به')
+    return
+end
 
 -- The farm is selected with the original copier picker below; no number is requested.
 _G.MERGED_PACKAGE=MERGED_PACKAGE
@@ -359,7 +383,6 @@ local SRC_TOOL = [=[
 -- CITY SELECTION (provided by merged launcher)
 -- ============================================
 local INPUT = MERGED_TOWNSHIP_BASE .. "mGameInfo.xml"
-local OUTPUT = MERGED_TOWNSHIP_BASE .. ".1bsb.xml"
 local EDITED_OUTPUT = MERGED_TOWNSHIP_BASE .. "mGameInfo.xml"
 
 -- ============================================
@@ -374,6 +397,829 @@ local EDIT_URL =
 
 
 -- ============================================
+local APP_BARN_CATEGORIES = {
+    {name="🌾النباتات🍓", items={
+        {key="wheat", label="قمح"},
+        {key="corn", label="ذرة"},
+        {key="carrot", label="جزر"},
+        {key="sugarcane", label="قصب سكر"},
+        {key="cotton", label="قطن"},
+        {key="strawberry", label="فراولة"},
+        {key="tomat", label="طماطم"},
+        {key="pine", label="خشب"},
+        {key="potato", label="بطاطس"},
+        {key="cacao", label="كاكاو"},
+        {key="rubberTree", label="شجرة المطاط"},
+        {key="silk", label="حرير"},
+        {key="pepper", label="فلفل"},
+        {key="rice", label="أرز"},
+        {key="roseSeed", label="بذور ورد"},
+        {key="jasmine", label="ياسمين"},
+        {key="coffee", label="بن"},
+        {key="soybean", label="فول صويا"},
+        {key="teabush", label="أوراق شاي"},
+        {key="mint", label="نعناع"},
+        {key="peanut", label="فول سوداني"},
+        {key="lavender", label="خزامى"},
+        {key="cork", label="فلين"},
+    }},
+    {name="🐮المنتجات الحيوانية🥛", items={
+        {key="milk", label="حليب"},
+        {key="egg", label="بيض"},
+        {key="wool", label="صوف"},
+        {key="bacon", label="بيكون"},
+        {key="honeycomb", label="قرص عسل"},
+        {key="mushroom", label="فطر"},
+        {key="downFeather", label="ريش"},
+        {key="bigFeather", label="ريشة كبيرة"},
+    }},
+    {name="🍤منتجات الجزر🍉", items={
+        {key="apple", label="تفاح"},
+        {key="peach", label="خوخ"},
+        {key="watermelon", label="بطيخ"},
+        {key="plum", label="برقوق"},
+        {key="grapes", label="عنب"},
+        {key="fish", label="سمك"},
+        {key="shrimp", label="جمبري"},
+        {key="lobster", label="كركند"},
+        {key="scallop", label="محار"},
+        {key="pearl", label="لؤلؤ"},
+        {key="seaweed", label="أعشاب بحرية"},
+        {key="banana", label="موز"},
+        {key="coconut", label="جوز هند"},
+        {key="pineapple", label="أناناس"},
+        {key="olive", label="زيتون"},
+        {key="lemon", label="ليمون"},
+        {key="aloe", label="صبار"},
+        {key="aloeLeaves", label="أوراق صبار"},
+        {key="mango1", label="مانجو"},
+    }},
+    {name="🦃أعلاف الحيوانات🐝", items={
+        {key="cowfeed", label="علف بقري"},
+        {key="chickenfeed", label="علف دجاج"},
+        {key="sheepfeed", label="علف خراف"},
+        {key="pigfeed", label="علف خنازير"},
+        {key="beefeed", label="علف نحل"},
+    }},
+    {name="🥨الألبان والمخبوزات والسكر 🥐", items={
+        {key="flour", label="دقيق"},
+        {key="bread", label="خبز"},
+        {key="cookie", label="بسكويت"},
+        {key="bagel", label="بيغل"},
+        {key="pizza", label="بيتزا"},
+        {key="potatobread", label="خبز بطاطس"},
+        {key="bananabread", label="خبز موز"},
+        {key="mushroomPie", label="فطيرة فطر"},
+        {key="strudel", label="سترودل"},
+        {key="marinepizza", label="بيتزا مارينارا"},
+        {key="dough", label="عجين"},
+        {key="cream", label="كريمة"},
+        {key="cheese", label="جبن"},
+        {key="butter", label="زبدة"},
+        {key="yogurt", label="زبادي"},
+        {key="peachyogurt", label="زبادي خوخ"},
+        {key="sugar", label="سكر"},
+        {key="syrup", label="شراب"},
+    }},
+    {name="🍩الحلويات🍭", items={
+        {key="candy", label="حلوى"},
+        {key="caramelapple", label="تفاحة بالكراميل"},
+        {key="jellybeans", label="فاصوليا جيلي"},
+        {key="toffee", label="توفي"},
+        {key="candystick", label="عصا حلوى"},
+        {key="lollipop", label="مصاصة"},
+        {key="honeycandy", label="حلوى عسل"},
+        {key="fruitjelly", label="جيلي فواكه"},
+        {key="chocobar", label="لوح شوكولاتة"},
+        {key="teacandies", label="حلوى شاي"},
+        {key="mintlollipops", label="مصاصات نعناع"},
+        {key="cottonCandy", label="غزل بنات"},
+        {key="chocolate", label="شوكولاتة"},
+        {key="icecream", label="آيس كريم"},
+        {key="frozenyogurt", label="زبادي مجمد"},
+        {key="fruitice", label="مثلجات فواكه"},
+        {key="eskimo", label="آيس كريم إسكيمو"},
+        {key="pineapplesorbet", label="سوربيه أناناس"},
+        {key="roseSorbet", label="سوربيه ورد"},
+        {key="parfait", label="بارفيه"},
+        {key="mintchocolateicecream", label="آيس كريم شوكولاتة بالنعناع"},
+        {key="muffin", label="مافن"},
+        {key="brownie", label="براوني"},
+        {key="cupcake", label="كب كيك"},
+        {key="doughnut", label="دونات"},
+        {key="cheesecake", label="تشيز كيك"},
+        {key="limepie", label="فطيرة ليمون"},
+        {key="coconutmacaroon", label="ماكرون جوز هند"},
+        {key="honeycake", label="كيك عسل"},
+        {key="strawberrycake", label="كيك فراولة"},
+        {key="weddingcake", label="كيك زفاف"},
+        {key="coffeecake", label="كيك بن"},
+        {key="chocolatecake", label="كيك شوكولاتة"},
+        {key="carrotcake", label="كيك جزر"},
+        {key="mintcake", label="كيك نعناع"},
+        {key="tiramisu", label="تيراميسو"},
+    }},
+    {name="🍟الوجبات السريعة🍔", items={
+        {key="chips", label="رقائق بطاطس"},
+        {key="popcorn", label="فشار"},
+        {key="cornchips", label="رقائق ذرة"},
+        {key="granola", label="جرانولا"},
+        {key="canape", label="كانابيه"},
+        {key="glazedbacon", label="بيكون مزجج"},
+        {key="puffedrice", label="أرز منفوش"},
+        {key="saltedpeanut", label="فول سوداني مملح"},
+        {key="frenchfries", label="بطاطس مقلية"},
+        {key="sandwich", label="ساندويتش"},
+        {key="cheeseburger", label="تشيز برجر"},
+        {key="bakedpotatoes", label="بطاطس مشوية"},
+        {key="fishburger", label="برجر سمك"},
+        {key="fish_chips", label="سمك ورقائق"},
+        {key="peanot_crepes", label="كريب فول سوداني"},
+        {key="hot_dog", label="هوت دوج"},
+        {key="corndog", label="كورن دوج"},
+        {key="cheese_coney", label="تشيز كوني"},
+        {key="carrot_hotdog", label="هوت دوج جزر"},
+        {key="taco", label="تاكو"},
+        {key="nachos", label="ناتشوز"},
+        {key="burrito", label="بوريتو"},
+        {key="jalapeno", label="هالابينو"},
+        {key="falafel", label="فلافل"},
+        {key="hummus", label="حمص"},
+        {key="guacamole", label="جواكامولي"},
+        {key="bacon_eggs", label="بيض وبيكون"},
+    }},
+    {name="🍹المشروبات🍹", items={
+        {key="milkshake", label="ميلك شيك"},
+        {key="grap_fizz", label="صودا عنب"},
+        {key="chocolate_smoothie", label="سموذي شوكولاتة"},
+        {key="watermelon_fresh", label="عصير بطيخ"},
+        {key="tropical_mix", label="مزيج استوائي"},
+        {key="cold_tea", label="شاي مثلج"},
+        {key="minticetea", label="شاي مثلج بالنعناع"},
+        {key="applefresh", label="عصير تفاح"},
+        {key="espresso", label="إسبريسو"},
+        {key="cappuccino", label="كابتشينو"},
+        {key="mokachino", label="موكاشينو"},
+        {key="hot_chocolate", label="شوكولاتة ساخنة"},
+        {key="blacktea", label="شاي أسود"},
+        {key="whitetea", label="شاي أبيض"},
+        {key="rosetea", label="شاي ورد"},
+        {key="tibettea", label="شاي تبتي"},
+        {key="oolong", label="شاي أولونغ"},
+        {key="appletea", label="شاي تفاح"},
+        {key="coconut_raf", label="كافيه كوكو راف"},
+        {key="teabags", label="أكياس شاي"},
+    }},
+    {name="🧥الملابس والأحذية🧦", items={
+        {key="woolfabric", label="قماش صوف"},
+        {key="cottonfabric", label="قماش قطن"},
+        {key="silkfabric", label="قماش حرير"},
+        {key="nylonthread", label="خيط نايلون"},
+        {key="shirt", label="قميص"},
+        {key="sweater", label="سترة"},
+        {key="coat", label="معطف"},
+        {key="hat", label="قبعة"},
+        {key="suit", label="بدلة"},
+        {key="tiroleanHat", label="قبعة تيرولية"},
+        {key="eveningdress", label="فستان سهرة"},
+        {key="dress", label="فستان"},
+        {key="flipflops", label="شبشب"},
+        {key="sandals", label="صنادل"},
+        {key="sneakers", label="حذاء رياضي"},
+        {key="boots", label="حذاء"},
+        {key="heels", label="كعب عالي"},
+        {key="downBoots", label="حذاء شتوي"},
+        {key="downJacket", label="جاكيت شتوي"},
+    }},
+    {name="📖المنزل والقرطاسية💢", items={
+        {key="paper", label="ورق"},
+        {key="papertowel", label="مناديل ورقية"},
+        {key="wallpapers", label="ورق جدران"},
+        {key="book", label="كتاب"},
+        {key="stickers", label="لصاقات"},
+        {key="marker", label="قلم تحديد"},
+        {key="eraser", label="ممحاة"},
+        {key="corkboard", label="لوح فلين"},
+        {key="table", label="طاولة"},
+        {key="chair", label="كرسي"},
+        {key="couch", label="أريكة"},
+        {key="bed", label="سرير"},
+        {key="floor_lamp", label="مصباح أرضي"},
+        {key="pillow", label="وسادة"},
+        {key="duvet", label="لحاف"},
+        {key="tissue", label="مناديل"},
+        {key="dispenser", label="موزع"},
+    }},
+    {name="🍴المطعم والأطباق🍽", items={
+        {key="sushi", label="سوشي"},
+        {key="lobster_nigiri", label="نيجيري كركند"},
+        {key="scallopsushi", label="سوشي محار"},
+        {key="soup", label="حساء"},
+        {key="misosoup", label="شوربة ميسو"},
+        {key="corn_soup", label="شوربة ذرة"},
+        {key="mushroomSoup", label="شوربة فطر"},
+        {key="gazpacho", label="جازباتشو"},
+        {key="bouillabaisse", label="بويابيس"},
+        {key="seaweedsalad", label="سلطة أعشاب بحرية"},
+        {key="mushroomSalad", label="سلطة فطر"},
+        {key="seafood_salad", label="سلطة مأكولات بحرية"},
+        {key="nicoise", label="سلطة نيكواز"},
+        {key="rice_noodle", label="نودلز أرز"},
+        {key="thai_sauce", label="صلصة تايلاندية"},
+        {key="sauce", label="صلصة"},
+        {key="quiche", label="كيش"},
+        {key="fried_fish", label="سمك مقلي"},
+        {key="rice_casserole", label="طاجن أرز"},
+        {key="baked_lobster", label="كركند مشوي"},
+        {key="lobster_newburg", label="كركند نيوبيرغ"},
+        {key="scallopskew", label="كباب محار"},
+        {key="grilledMeat", label="لحم مشوي"},
+        {key="ratatouille", label="راتاتوي"},
+        {key="profiteroles", label="بروفيترول"},
+        {key="gyoza", label="غيوزا"},
+        {key="readylunch", label="علبة غداء"},
+        {key="frozenvegetables", label="خضروات مجمدة"},
+        {key="seafoodcocktail", label="كوكتيل مأكولات بحرية"},
+        {key="oliveoil", label="زيت زيتون"},
+        {key="bruschetta", label="بروشيتا"},
+        {key="arrabbiata", label="أرابياتا"},
+        {key="ravioli", label="رافيولي"},
+        {key="lasagna", label="لازانيا"},
+        {key="mole", label="مول"},
+    }},
+    {name="🍒المربيات🍓", items={
+        {key="jam", label="مربى"},
+        {key="strawberry_jam", label="مربى فراولة"},
+        {key="peach_jam", label="مربى خوخ"},
+        {key="watermelon_jam", label="مربى بطيخ"},
+        {key="plum_jam", label="مربى برقوق"},
+        {key="grapes_jam", label="مربى عنب"},
+        {key="roseJam", label="مربى ورد"},
+        {key="mushroom_jam", label="مربى فطر"},
+        {key="applejam", label="مربى تفاح"},
+        {key="peanut_butter", label="زبدة فول سوداني"},
+        {key="ketchup", label="كاتشب"},
+        {key="driedMushrooms", label="فطر مجفف"},
+        {key="tofu", label="توفو"},
+        {key="soymilk", label="حليب صويا"},
+    }},
+    {name="💍التجميل والمجوهرات👑", items={
+        {key="brownCandle", label="شمعة بنية"},
+        {key="perfumeBottle", label="عطر"},
+        {key="flowerSoap", label="صابون أزهار"},
+        {key="lotionBottle", label="لوشن"},
+        {key="aromatic_oil", label="زيت عطري"},
+        {key="air_freshener", label="معطر جو"},
+        {key="creammask", label="ماسك وجه"},
+        {key="toothpaste", label="معجون أسنان"},
+        {key="vitamin_cocktail", label="كوكتيل فيتامينات"},
+        {key="pendant", label="قلادة"},
+        {key="ring", label="خاتم"},
+        {key="pearlneck", label="عقد لؤلؤ"},
+        {key="earrings", label="أقراط"},
+        {key="diadem", label="تاج"},
+    }},
+    {name="🎉الألعاب والحفلات🥳", items={
+        {key="toys", label="ألعاب"},
+        {key="ball", label="كرة"},
+        {key="shuttlecock", label="ريشة ريشة"},
+        {key="Plasticine", label="صلصال"},
+        {key="ragdoll", label="دمية قماش"},
+        {key="puppet", label="دمية يد"},
+        {key="chinadoll", label="دمية خزف"},
+        {key="barbie", label="دمية باربي"},
+        {key="ukulele", label="يوكولالي"},
+        {key="saxophone", label="ساكسفون"},
+        {key="drum", label="طبل"},
+        {key="accordion", label="أكورديون"},
+        {key="panpipe", label="مزمار بان"},
+        {key="pettoy", label="لعبة حيوانات"},
+        {key="cattoy", label="لعبة قطط"},
+        {key="waterbowl", label="وعاء ماء"},
+        {key="catcave", label="كهف قطة"},
+        {key="catlitter", label="رمل قطط"},
+        {key="airballoon", label="منطاد"},
+        {key="soapBubbles", label="فقاعات صابون"},
+        {key="lei", label="إكليل هاواي"},
+    }},
+    {name="🌺الأدوات والزهور🌹", items={
+        {key="clover", label="برسيم"},
+        {key="bridebouquet", label="باقة زفاف"},
+        {key="sweetbouquet", label="باقة سكرية"},
+        {key="basketbouquet", label="باقة سلة"},
+        {key="teacoffeebouquet", label="باقة شاي وقهوة"},
+        {key="driedflowers", label="زهور مجففة"},
+        {key="summerbouquet", label="باقة صيفية"},
+        {key="vegetablebouquet", label="باقة خضروات"},
+        {key="toolset", label="مجموعة أدوات"},
+        {key="irrigationhose", label="خرطوم ري"},
+        {key="flowertub", label="حوض زهور"},
+        {key="gardengnome", label="قزم حديقة"},
+        {key="brush", label="فرشاة"},
+        {key="clothesline", label="حبل غسيل"},
+        {key="plunger", label="مكبس"},
+        {key="duster", label="منفضة"},
+        {key="gloves", label="قفازات"},
+        {key="plastic", label="بلاستيك"},
+        {key="glue", label="صمغ"},
+        {key="dumbbell", label="دمبل"},
+    }},
+    {name="🧺أدوات المطبخ والحقائب🛍", items={
+        {key="mug", label="كوب"},
+        {key="frypan", label="مقلاة"},
+        {key="teapot", label="إبريق شاي"},
+        {key="cutlery", label="أدوات مائدة"},
+        {key="teaceremonykit", label="طقم حفل شاي"},
+        {key="potstand", label="حامل أواني"},
+        {key="newbackpack", label="حقيبة ظهر"},
+        {key="basket", label="سلة"},
+        {key="handbag", label="حقيبة يد"},
+        {key="suitcase", label="حقيبة سفر"},
+    }},
+    {name="🛠مواد البناء⛏️", items={
+        {key="Brick", label="طوب"},
+        {key="Glass", label="زجاج"},
+    }},
+    {name="مواد المخزن والتوسعة", items={
+        {key="hammerMat", label="مطرقة"},
+        {key="nailMat", label="مسامير"},
+        {key="paintRedMat", label="طلاء أحمر"},
+        {key="axe", label="فأس"},
+        {key="powersaw", label="منشار كهربائي"},
+        {key="pick", label="معول"},
+        {key="TNT", label="TNT"},
+        {key="jackhammer", label="شاكوش ضاغط"},
+    }},    
+    {name="🥈السبائك🏅", items={
+        {key="BronzeBullion", label="سبيكة برونز"},
+        {key="SilverBullion", label="سبيكة فضة"},
+        {key="GoldBullion", label="سبيكة ذهب"},
+    }},
+}
+
+local APP_RESOURCE_CATEGORIES = {
+    {name="♡BS♡", items={
+        {key="معزز الصاروخ"},
+        {key="معزز القنبلة"},
+        {key="كرة قوس قزح"},
+        {key="مطرقة المطابقة"},
+        {key="أداة المطابقة الأفقية"},
+        {key="أداة المطابقة العمودية"},
+        {key="إعادة خلط المطابقة"},
+        {key="معزز مضاعف (أيام)"},
+        {key="حياة لا نهائية (أيام)"},
+        {key="حركات المطابقة"},
+    }},
+    {name="♡BS♡", items={
+        {key="جوهرة 1"},
+        {key="جوهرة 2"},
+        {key="جوهرة 3"},
+        {key="جوهرة 4"},
+        {key="سبيكة ذهب"},
+        {key="سبيكة فضة"},
+        {key="سبيكة برونز"},
+        {key="سبيكة بلاتين"},
+    }},
+    {name="♡BS♡", items={
+        {key="معول"},
+        {key="متفجرات"},
+        {key="متفجرات قوية"},
+        {key="خام برونز"},
+        {key="خام ذهب"},
+        {key="خام فضة"},
+        {key="خام بلاتين"},
+        {key="طين"},
+    }},
+    {name="♡BS♡", items={
+        {key="برسيم"},
+        {key="نجمة"},
+        {key="طاقة استكشاف"},
+    }},
+    {name=" ♡BS♡", items={
+        {key="زيادة إنتاج المزرعة"},
+        {key="مضاعفة إنتاج المصنع"},
+        {key="تسريع القطارات"},
+        {key="زيادة عملات الطلبات"},
+        {key="تسريع وقت المصنع"},
+        {key="تسريع وقت المصهر"},
+        {key="تسريع السوق"},
+        {key="تسريع السفن"},
+        {key="عملات المطار"},
+        {key="زيادة حد التبرع"},
+        {key="زيادة سعة التخزين"},
+        {key="قلوب حديقة الحيوان"},
+        {key="طلبات مساعدة الفريق"},
+        {key="فوانيس المنجم"},
+        {key="احتمالية الجزر"},
+        {key="زيادة إنتاج الحصاد"},
+        {key="تسريع التاجر"},
+        {key="تسريع الحصاد"},
+        {key="تسريع الطلبات"},
+    }},
+    {name="♡BS♡", items={
+        {key="قسيمة ترقية المصانع"},
+        {key="قسيمة ترقية الجزيرة"},
+        {key="قسيمة ترقية القطار"},
+        {key="قسيمة التحميل"},
+        {key="قسيمة التوسعة"},
+        {key="قسيمة الشونة"},
+        {key="قسيمة التاجر"},
+    }},
+    {name="♡BS♡", items={
+        {key="سرعة البناء"},
+        {key="سرعة الحصاد"},
+        {key="سرعة الحيوانات"},
+        {key="معزز الحظيرة"},
+        {key="سرعة الطائرات"},
+        {key="قطار مضاعف"},
+        {key="سوق ممتاز"},
+        {key="مكافأة العملات"},
+        {key="صاروخ المنجم"},
+        {key="طلب تعاون"},
+        {key="منجم مضاعف"},
+    }},
+}
+
+-- المعرفات الداخلية التي أكدها السكربت القديم والسيرفر.
+-- الاسم العربي للعرض فقط، أما name المرسل للسيرفر فيجب أن يكون هنا.
+local APP_RESOURCE_KEY_MAP = {
+    -- أدوات المطابقة
+    ["معزز الصاروخ"] = "m3Line",
+    ["معزز القنبلة"] = "m3Bomb",
+    ["كرة قوس قزح"] = "m3RainbowBall",
+    ["مطرقة المطابقة"] = "m3Mallet",
+    ["أداة المطابقة الأفقية"] = "m3HorizontalLine",
+    ["أداة المطابقة العمودية"] = "m3VerticalLine",
+    ["إعادة خلط المطابقة"] = "m3Reshuffle",
+    ["معزز مضاعف (أيام)"] = "booster2x_days",
+    ["حياة لا نهائية (أيام)"] = "lives_inf_days",
+    ["حركات المطابقة"] = "match3_moves",
+    ["قنبلة لا نهائية (أيام)"] = "m3bomb_inf_days",
+    ["خط لا نهائي (أيام)"] = "m3line_inf_days",
+    ["كرة قوس قزح لا نهائية (أيام)"] = "m3rainbow_inf_days",
+
+    -- المختبر
+    ["زيادة إنتاج المزرعة"] = "BoostProductFarm",
+    ["مضاعفة إنتاج المصنع"] = "BoostDoubleFactory",
+    ["تسريع القطارات"] = "BoostSpeedUpTrains",
+    ["زيادة عملات الطلبات"] = "BoostMoneyOrder",
+    ["تسريع وقت المصنع"] = "BoostTimeFactory",
+    ["تسريع وقت المصهر"] = "BoostTimeSmeltery",
+    ["تسريع السوق"] = "BoostTimeMarket",
+    ["تسريع السفن"] = "BoostSpeedUpShips",
+    ["عملات المطار"] = "BoostAirportCoins",
+    ["زيادة حد التبرع"] = "BoostMaxDonate",
+    ["زيادة سعة التخزين"] = "BoostStorageCapacity",
+    ["قلوب حديقة الحيوان"] = "BoostHeartsZoo",
+    ["طلبات مساعدة الفريق"] = "BoostClanHelpRequest",
+    ["فوانيس المنجم"] = "BoostLanternMine",
+    ["احتمالية الجزر"] = "BoostProbabilityIslands",
+    ["زيادة إنتاج الحصاد"] = "BoostProductHarvest",
+    ["تسريع التاجر"] = "BoostSpeedUpDealer",
+    ["تسريع الحصاد"] = "BoostSpeedUpHarvest",
+    ["تسريع الطلبات"] = "BoostSpeedUpOrder",
+
+    -- الجواهر والمنجم والموارد
+    ["جوهرة 1"] = "gem1",
+    ["جوهرة 2"] = "gem2",
+    ["جوهرة 3"] = "gem3",
+    ["جوهرة 4"] = "gem4",
+    ["سبيكة ذهب"] = "GoldBullion",
+    ["سبيكة فضة"] = "SilverBullion",
+    ["سبيكة برونز"] = "BronzeBullion",
+    ["سبيكة بلاتين"] = "PlatinumBullion",
+    ["طاقة استكشاف"] = "energy_expedition",
+    ["نجمة"] = "star",
+    ["برسيم"] = "clovers",
+    ["معول"] = "m1",
+    ["متفجرات"] = "m2",
+    ["متفجرات قوية"] = "m3",
+    ["TNT"] = "m3",
+    ["خام برونز"] = "o1",
+    ["خام ذهب"] = "o2",
+    ["خام فضة"] = "o3",
+    ["خام بلاتين"] = "o4",
+    ["طين"] = "o5",
+
+    -- المعززات الإضافية
+    ["سرعة البناء"] = "SP_BoostSpeedUpBuildings",
+    ["سرعة الحصاد"] = "SP_BoostSpeedUpHarvest",
+    ["سرعة الحيوانات"] = "SP_BoostSpeedUpFarms",
+    ["معزز الحظيرة"] = "SP_BoostStorageCapacity",
+    ["سرعة الطائرات"] = "SP_BoostSpeedUpAir",
+    ["قطار مضاعف"] = "SP_BoostTrainMats",
+    ["سوق ممتاز"] = "SP_MarketPremium",
+    ["مكافأة العملات"] = "SP_BoostOrderCoins",
+    ["صاروخ المنجم"] = "SP_BoostMineRocket",
+    ["طلب تعاون"] = "SP_BoostClanHelpRequest",
+    ["منجم مضاعف"] = "CascadeEventMine"
+}
+
+local function resourceInternalKey(key)
+    return APP_RESOURCE_KEY_MAP[tostring(key or "")] or tostring(key or "")
+end
+
+local function choose_catalog_items(categories, title)
+    -- بعض عناصر الموارد القديمة تحتوي على key فقط دون label.
+    -- استخدام key كاسم عرض احتياطي يمنع خطأ nil عند فتح القائمة.
+    local function itemLabel(item)
+        return tostring(item.label or item.name or item.key or "عنصر")
+    end
+
+    local category_labels = {}
+    for _, category in ipairs(categories) do
+        table.insert(category_labels, category.name)
+    end
+    local category_index = gg.choice(category_labels, nil, title .. " — اختر القسم")
+    if not category_index then return nil end
+    local category = categories[category_index]
+    local item_labels = {}
+    table.insert(item_labels, "✅ تحديد جميع أصناف القسم")
+    for _, item in ipairs(category.items) do
+        table.insert(item_labels, itemLabel(item) .. "  [" .. tostring(item.key or "") .. "]")
+    end
+    local selected = gg.multiChoice(item_labels, nil, title .. " — " .. category.name .. " (اختر عدة أصناف)")
+    if not selected then return nil end
+    local input = gg.prompt({"العدد لجميع الأصناف المحددة"}, {""}, {"number"})
+    if not input or input[1] == nil or tostring(input[1]) == "" then return nil end
+    local amount = tonumber(input[1])
+    if not amount or amount < 0 then
+        gg.alert("❌ العدد غير صحيح")
+        return nil
+    end
+    local result = {}
+    for index, checked in pairs(selected) do
+        if checked and index == 1 then
+            for _, item in ipairs(category.items) do
+                table.insert(result, {name = resourceInternalKey(item.key), value = amount, label = itemLabel(item)})
+            end
+            break
+        elseif checked and index > 1 then
+            local item = category.items[index - 1]
+            if item and item.key then
+                table.insert(result, {name = resourceInternalKey(item.key), value = amount, label = itemLabel(item)})
+            end
+        end
+    end
+    if #result == 0 then return nil end
+    return result
+end
+
+local APP_SKIN_IDS = {
+    "Skin_Sheep_butterfly_71", "Skin_Sheep_halloween2022", "Skin_Sheep_lunarNY2022", "Skin_Sheep_easter2023", "Skin_Sheep_nordicGod",
+    "Skin_Sheep_detective", "Skin_Sheep_sweet", "Skin_Sheep_robinHood", "Skin_Sheep_brazil", "Skin_Sheep_rocknroll",
+    "Skin_Sheep_knight", "Skin_Sheep_wildwest2024", "Skin_Sheep_birthday2024", "Skin_Sheep_birthday2024s", "Skin_Sheep_egypt",
+    "Skin_Sheep_christmas2024", "Skin_Sheep_allinclusive2025", "Skin_Sheep_hellas2025", "Skin_Sheep_masquerade", "Skin_Sheep_Default",
+    "Skin_Sheep_Birthday_2025", "Skin_Sheep_Halloween2025", "Skin_Helicopter_butterfly_71", "Skin_Helicopter_Resort", "Skin_Helicopter_Travel",
+    "Skin_Helicopter_Sport", "Skin_Helicopter_cinderella", "Skin_Helicopter_detective", "Skin_Helicopter_halloween2023", "Skin_Helicopter_brazil",
+    "Skin_Helicopter_easter2024", "Skin_Helicopter_atlantis", "Skin_Helicopter_pirate2024", "Skin_Helicopter_disco", "Skin_Helicopter_mars2025",
+    "Skin_Helicopter_Ufo", "Skin_Helicopter_Robot", "Skin_Helicopter_sport", "Skin_Helicopter_Arabic", "Skin_Helicopter_travel",
+    "Skin_Helicopter_Sleigh", "Skin_Helicopter_Gatsby", "Skin_Helicopter_masquerade", "Skin_Helicopter_cny2025", "Skin_Helicopter_Ufo:2",
+    "Skin_Helicopter_Sleigh:2", "Skin_Helicopter_Harvest", "Skin_Helicopter_Robot:2", "Skin_Helicopter_Default", "Skin_Helicopter_Birthday_2025",
+    "Skin_Helicopter_christmas_67", "Skin_Airplane_carnival_70", "Skin_Airplane_movie", "Skin_Airplane_christmas2022", "Skin_Airplane_easter2023",
+    "Skin_Airplane_sweet", "Skin_Airplane_winterSport", "Skin_Airplane_ireland", "Skin_Airplane_spy", "Skin_Airplane_allinclusive",
+    "Skin_Airplane_fashion", "Skin_Airplane_arab", "Skin_Airplane_SP3:2", "Skin_Airplane_halloween2021:2", "Skin_Airplane_space",
+    "Skin_Airplane_rock", "Skin_Airplane_classicmusic", "Skin_Airplane_Default", "Skin_Airplane_Halloween2025", "Skin_Chicken_easter_72",
+    "Skin_Chicken_travel", "Skin_Chicken_theatrical", "Skin_Chicken_sport", "Skin_Chicken_cinderella", "Skin_Chicken_jungle",
+    "Skin_Chicken_sweet", "Skin_Chicken_christmas2023", "Skin_Chicken_ireland", "Skin_Chicken_hellas", "Skin_Chicken_allinclusive",
+    "Skin_Chicken_birthday2024", "Skin_Chicken_halloween2024", "Skin_Chicken_fashion", "Skin_Chicken_disco", "Skin_Chicken_mars2025",
+    "Skin_Chicken_cny2025", "Skin_Chicken_Default", "Skin_Chicken_Birthday_2025", "Skin_Chicken_Birthday_2025s", "Skin_TrainStation_prehistoric",
+    "Skin_TrainStation_theatrical", "Skin_TrainStation_lunarNY2022", "Skin_TrainStation_mars", "Skin_TrainStation_robinHood", "Skin_TrainStation_rocknroll",
+    "Skin_TrainStation_knight", "Skin_TrainStation_italy2024", "Skin_TrainStation_halloween2024", "Skin_TrainStation_christmas2024", "Skin_TrainStation_festival",
+    "Skin_TrainStation_hellas2025", "Skin_TrainStation_Default", "Skin_TrainStation_western", "Skin_TrainStation_easter", "Skin_HelicopterPlace_butterfly_71",
+    "Skin_HelicopterPlace_Travel", "Skin_HelicopterPlace_Sport", "Skin_HelicopterPlace_cinderella", "Skin_HelicopterPlace_detective", "Skin_HelicopterPlace_halloween2023",
+    "Skin_HelicopterPlace_brazil", "Skin_HelicopterPlace_easter2024", "Skin_HelicopterPlace_atlantis", "Skin_HelicopterPlace_pirate2024", "Skin_HelicopterPlace_disco",
+    "Skin_HelicopterPlace_mars2025", "Skin_HelicopterPlace_masquerade", "Skin_HelicopterPlace_cny2025", "Skin_HelicopterPlace_Sleigh", "Skin_HelicopterPlace_Harvest",
+    "Skin_HelicopterPlace_Arabic", "Skin_HelicopterPlace_Resort", "Skin_HelicopterPlace_Default", "Skin_HelicopterPlace_Birthday_2025", "Skin_HelicopterPlace_christmas_67",
+    "Skin_Harbor_easter_72", "Skin_Harbor_halloween2022", "Skin_Harbor_valentinesDay", "Skin_Harbor_nordicGod", "Skin_Harbor_jungle",
+    "Skin_Harbor_christmas2023", "Skin_Harbor_CNY", "Skin_Harbor_hellas", "Skin_Harbor_wildwest2024", "Skin_Harbor_birthday2024",
+    "Skin_Harbor_egypt", "Skin_Harbor_allinclusive2025", "Skin_Harbor_arctic", "Skin_Harbor_japan", "Skin_Harbor_SP9",
+    "Skin_Harbor_venice", "Skin_Harbor_Default", "Skin_Harbor_ST1", "Skin_Harbor_paris", "Skin_Harbor_ST8",
+    "Skin_Harbor_ST35", "Skin_Harbor_ST43", "Skin_Harbor_ST51", "Skin_Airport_carnival_70", "Skin_Airport_christmas2022",
+    "Skin_Airport_sweet", "Skin_Airport_winterSport", "Skin_Airport_ireland", "Skin_Airport_spy", "Skin_Airport_allinclusive",
+    "Skin_Airport_arab", "Skin_Airport_SP3", "Skin_Airport_rock", "Skin_Airport_halloween2021", "Skin_Airport_easter2023",
+    "Skin_Airport_classicmusic", "Skin_Airport_fashion", "Skin_Airport_Default", "Skin_Airport_movie", "Skin_Airport_Halloween2025",
+    "Skin_Ship_easter_72", "Skin_Ship_halloween2022", "Skin_Ship_valentinesDay", "Skin_Ship_nordicGod", "Skin_Ship_jungle",
+    "Skin_Ship_christmas2023", "Skin_Ship_CNY", "Skin_Ship_hellas", "Skin_Ship_wildwest2024", "Skin_Ship_birthday2024",
+    "Skin_Ship_egypt", "Skin_Ship_allinclusive2025", "Skin_Ship_Default", "Skin_Ship_ST1", "Skin_Ship_paris",
+    "Skin_Ship_venice", "Skin_Ship_arctic", "Skin_Ship_japan", "Skin_Ship_SP9", "Skin_Train_prehistoric",
+    "Skin_Train_theatrical", "Skin_Train_lunarNY2022", "Skin_Train_mars", "Skin_Train_robinHood", "Skin_Train_rocknroll",
+    "Skin_Train_knight", "Skin_Train_italy2024", "Skin_Train_halloween2024", "Skin_Train_christmas2024", "Skin_Train_festival",
+    "Skin_Train_hellas2025", "Skin_Train_easter", "Skin_Train_christmas", "Skin_Train_SP5", "Skin_Train_SP8",
+    "Skin_Train_western", "Skin_Train_Default1", "Skin_Train_SP2:2", "Skin_Train_ST45", "Skin_Train_ST50",
+    "Skin_Train_ST47", "Skin_Train_ST24", "Skin_Cow_carnival_70", "Skin_Cow_movie", "Skin_Cow_christmas2022",
+    "Skin_Cow_valentine", "Skin_Cow_mars", "Skin_Cow_sweet2", "Skin_Cow_sweet", "Skin_Cow_halloween2023",
+    "Skin_Cow_winterSport", "Skin_Cow_CNY", "Skin_Cow_easter2024", "Skin_Cow_spy", "Skin_Cow_atlantis",
+    "Skin_Cow_italy2024", "Skin_Cow_birthday2024", "Skin_Cow_pirate2024", "Skin_Cow_festival", "Skin_Cow_arab",
+    "Skin_Cow_arctic", "Skin_Cow_japan", "Skin_Cow_pirate20", "Skin_Cow_classicmusic", "Skin_Cow_Birthday_2025",
+    "Skin_Pig_CNY", "Skin_Pig_valentinesDay", "Skin_Fortress_aztecs", "Skin_Fortress_Pirate1", "Skin_Fortress_Pirate2",
+    "Skin_Fortress_Pirate3", "Skin_Fortress_Gatsby1", "Skin_Fortress_Gatsby2", "Skin_Fortress_Gatsby3", "Skin_Fortress_Christmas",
+    "Skin_Fortress_paris", "Skin_Fortress_easter", "Skin_Fortress_Halloween2021_1", "Skin_Fortress_Halloween2021_2", "Skin_Fortress_Halloween2021_3",
+    "Skin_Fortress_prehistoric",
+}
+local APP_DECOR_IDS = {
+    "1400_Christmas_Decoration", "5years", "Apple_Garden", "AquariumAtlantic_ancient", "Arabic_Tent",
+    "Atlantis_fence", "Basil_Cath", "Beach_volleyball", "BobsleighRace", "Book_Store",
+    "Bungalow_hammock", "CafeTube", "Cafe_Vineyard", "Cafe_Waterfall", "Carousel_Octopus",
+    "Cars_Exposition", "Castle_Trampoline", "Cave_Place", "ChineseBanner", "ChineseDog",
+    "ChineseNYTree", "ChineseNY_pigStatue", "Chinese_fence", "ChocolateFactoryDecor", "ChristmasBall",
+    "ChristmasBanner", "ChristmasCarousel", "ChristmasTrain_Bridge", "Christmas_Cafe", "Christmas_Chorus",
+    "Christmas_Fair", "Christmas_GingerbreadMan", "Christmas_Ice_skating", "Christmas_Santa_House", "Christmas_Santas_Reinde",
+    "Christmas_Snow_fortress", "Christmas_Snowman", "Christmas_Urban_tree", "Christmas_angel", "Christmas_fence",
+    "Christmas_gifts", "Christmas_lantern", "Christmas_presentsock", "Christmas_scene", "Christmas_train",
+    "Circus_Camping", "Color_Egg", "Connect_Station", "Cover_Gift", "CowArtist",
+    "Cowboy_Tower", "Crab_Cook", "CraneFountain", "Cycle_Parking", "Decor_FlowerShop",
+    "Decor_Ropepark", "Decor_TreeHouse", "Dino_Safe", "DiscoDecorationSP8", "DroneRace_plane",
+    "Easter2017Decor", "EasterStump", "EasterVineyard", "Easter_bunnies", "Easter_fence",
+    "Easter_fountain", "EgyptPapyrusBoat", "EgyptPharaohStatue", "EgyptPyramid", "ExpeditionDecoration",
+    "ExpeditionDecoration10", "ExpeditionDecoration11", "ExpeditionDecoration12", "ExpeditionDecoration13", "ExpeditionDecoration14",
+    "ExpeditionDecoration15", "ExpeditionDecoration16", "ExpeditionDecoration17", "ExpeditionDecoration18", "ExpeditionDecoration19",
+    "ExpeditionDecoration2", "ExpeditionDecoration20", "ExpeditionDecoration21", "ExpeditionDecoration22", "ExpeditionDecoration25",
+    "ExpeditionDecoration3", "ExpeditionDecoration34", "ExpeditionDecoration37", "ExpeditionDecoration38", "ExpeditionDecoration39",
+    "ExpeditionDecoration4", "ExpeditionDecoration40", "ExpeditionDecoration41", "ExpeditionDecoration5", "ExpeditionDecoration6",
+    "ExpeditionDecoration7", "ExpeditionDecoration8", "ExpeditionDecoration9", "Fairy_Fountain", "Fashion_Boutique",
+    "FinalReward_gardenCinema", "Flower_Statue", "Flower_Store", "GhostGarden", "Giant_Snowman",
+    "Ginger_House", "GingerbreadManHotChocolate", "Glamping_Camp", "Glamping_House", "GlassBridge",
+    "Gold_Diggers", "Gothic_Tower", "Grape_Press", "Greenhouse_Predator", "Hall_Fame",
+    "Halloween2017Decor", "Halloween_Organ", "Halloween_Park", "Happy_Aquarium", "Headless_Horseman",
+    "HelixJump_TreasureIsland", "Helix_Pazzles", "Horn_Harvest", "Horse_Carousel", "HotDogSwing",
+    "Hot_Fountain", "HouseEgyptian", "House_Garden", "IceExhibition_runner", "Installation_Insomnia",
+    "InstrumentWorkshop", "JazzClub", "JurassicPark", "KidsRailway", "KingdomCentre",
+    "LandscapesIcon", "LiraFountain", "LoveLock", "LoveTunnel", "Marsh_treasure",
+    "Mechanic_Car", "MegaCake", "Merge2Decoration1", "Merge2Decoration10", "Merge2Decoration11",
+    "Merge2Decoration12", "Merge2Decoration2", "Merge2Decoration3", "Merge2Decoration4", "Merge2Decoration5",
+    "Merge2Decoration6", "Merge2Decoration7", "Merge2Decoration8", "Merge2Decoration9", "MiniTownship",
+    "Mobile_Market", "MountainChalet_CozyHouse", "MountainChalet_HuskyHouse", "MusicCarousele", "Music_Scene",
+    "NewCinema_gatsby", "New_Year", "NewyearGlobe", "Notre_Dame", "Olympic_Baseballtraining",
+    "Olympic_Snowmachine", "Organic_Shop", "Palace_of_the_sky", "PaletteSculpture", "Paris_Street",
+    "PencilHouse_art", "PigOscar", "PinSculpture", "PirateFort", "Plank_Decor",
+    "Plank_Jeep", "Plank_Shop", "Plank_Werewolf", "Pumpkin_House", "Pumpkin_Metro",
+    "RainbowArch", "RestoratorBuild2", "Rialto_Bridge", "SailingRaft_treasure", "SaleSquare",
+    "Saloon_GrayMouse", "SantaSleigh", "Santa_Reception", "SculptureExhibition_art", "SeaFence_fence",
+    "SheepElf_runner", "SheepSlide", "ShipTower", "Ship_Fight", "Ski_Shop",
+    "SmallWaterfall", "Snowman", "SpaceRocket", "SpecialBeauty_AlbatrossOnBoat", "SpecialBeauty_Aquarium",
+    "SpecialBeauty_AquaticJetpack", "SpecialBeauty_AstrologerTower", "SpecialBeauty_AvtoAttraction", "SpecialBeauty_Banner", "SpecialBeauty_BathyscaphDive",
+    "SpecialBeauty_BeePilot", "SpecialBeauty_BirthdayBanner", "SpecialBeauty_BoatWithPirateFlag", "SpecialBeauty_BonfireCamp", "SpecialBeauty_CaptainStatueSeason",
+    "SpecialBeauty_China_dragon", "SpecialBeauty_China_fish", "SpecialBeauty_China_house", "SpecialBeauty_China_lantern", "SpecialBeauty_China_lightTree",
+    "SpecialBeauty_China_maneki", "SpecialBeauty_China_monkey", "SpecialBeauty_CityDay_arch_of_flowers", "SpecialBeauty_CityDay_boat_of_flowers", "SpecialBeauty_CityDay_flowerbed_car",
+    "SpecialBeauty_CityDay_pavlin", "SpecialBeauty_CityDay_sheeps", "SpecialBeauty_CommonwealthStatue", "SpecialBeauty_Digging_Tyrannosaurus", "SpecialBeauty_Dovecote",
+    "SpecialBeauty_EasterRabbit", "SpecialBeauty_EasterSymbol", "SpecialBeauty_EasterTopiary", "SpecialBeauty_Easter_ChocolateFoun", "SpecialBeauty_Easter_EasterBunny",
+    "SpecialBeauty_Easter_EasterChicken", "SpecialBeauty_Easter_EasterTree", "SpecialBeauty_Easter_FabergeEgg", "SpecialBeauty_Easter_FabergeEgg_blue", "SpecialBeauty_Easter_RabbitHouse",
+    "SpecialBeauty_Easter_SpringGirl", "SpecialBeauty_Excalibur", "SpecialBeauty_FrogStatue", "SpecialBeauty_FruitBridge", "SpecialBeauty_FruitKiosk",
+    "SpecialBeauty_Ghostbuster", "SpecialBeauty_GiantWatermelon", "SpecialBeauty_HelicopterTrampoline", "SpecialBeauty_HorrorHorses", "SpecialBeauty_InflatableCastle",
+    "SpecialBeauty_KidKite", "SpecialBeauty_KingsThrone", "SpecialBeauty_LanternGhost", "SpecialBeauty_MechanicalRodeo", "SpecialBeauty_MedievilCarrige",
+    "SpecialBeauty_MedievilTaverna", "SpecialBeauty_OctopusChest", "SpecialBeauty_PirateTavern", "SpecialBeauty_PumpkinWheel", "SpecialBeauty_RomanticDinner",
+    "SpecialBeauty_RuinsDive", "SpecialBeauty_RunwayAirplane", "SpecialBeauty_SeaCarousel", "SpecialBeauty_ShipGun", "SpecialBeauty_SpiderTree",
+    "SpecialBeauty_StatueFisherman", "SpecialBeauty_StatueOfTheCook", "SpecialBeauty_StatueWorkTogether", "SpecialBeauty_Sun", "SpecialBeauty_SwingPlane",
+    "SpecialBeauty_ThreeHouses", "SpecialBeauty_Totem", "SpecialBeauty_TreeBroccoli", "SpecialBeauty_TruckCamping", "SpecialBeauty_Valentine_flowercart",
+    "SpecialBeauty_WaterMill", "SpecialBeauty_WaterTower", "SpecialBeauty_ancor", "SpecialBeauty_animal_tower", "SpecialBeauty_bioplan",
+    "SpecialBeauty_birthday_ballon", "SpecialBeauty_chef_balloon", "SpecialBeauty_china_dragon2017", "SpecialBeauty_cockleshell", "SpecialBeauty_firerooster",
+    "SpecialBeauty_fishermans_house", "SpecialBeauty_flooded_tower", "SpecialBeauty_flyButterfly", "SpecialBeauty_flyChicken", "SpecialBeauty_flyCow",
+    "SpecialBeauty_flyDuck", "SpecialBeauty_flyElep", "SpecialBeauty_flyOctopus", "SpecialBeauty_flyParrot", "SpecialBeauty_flyPenguin",
+    "SpecialBeauty_flyPig", "SpecialBeauty_flyPlane", "SpecialBeauty_flySheep", "SpecialBeauty_flyTurtle", "SpecialBeauty_flyWhale",
+    "SpecialBeauty_fountain_restourante", "SpecialBeauty_galorobot", "SpecialBeauty_harvest_figure", "SpecialBeauty_ice_cream_cafe", "SpecialBeauty_jumping_fish",
+    "SpecialBeauty_mermaid", "SpecialBeauty_mobile_coffee_truck", "SpecialBeauty_octopus", "SpecialBeauty_paukohod", "SpecialBeauty_perpetumlucerna",
+    "SpecialBeauty_planeAmphibian", "SpecialBeauty_plungerDive", "SpecialBeauty_redBridge", "SpecialBeauty_seahorse", "SpecialBeauty_statue_pig",
+    "SpecialBeauty_topiary_egg", "SpecialBeauty_walking_castle", "SpecialBeauty_wealth_bowl", "SpecialBeauty_whalefountain_fishing", "Summer_Cafe",
+    "Surf_Decor", "Surf_Pool", "Surf_Rental", "Surf_Sale", "Surfingers_Trampoline",
+    "Sweet_Tree", "Tiki_Bar", "TouristParking_treasure", "Tower_of_Pisa", "Town_Fair",
+    "TrainConductor", "Tree_Market", "Tree_sakura", "Trio", "Trucks_Decotor",
+    "Trucks_PirateBistro", "Valentine_Bunny", "Valentine_CupidsArrow", "Valentine_Flowerbed", "Valentine_Gazebo_lovers",
+    "Valentine_Pond_with_swans", "Valentine_Statue_Lovers", "Valentine_Statue_of_cupid", "Valentine_Swing_lovers", "Valentine_Teddy_bear",
+    "Valentine_Teddy_bear2", "Valentine_Topiary", "Valentine_cats", "Valentine_diamond_heart", "Valentine_fountain_eternallove",
+    "Valentine_heartInHands", "Valentine_heart_pedestal", "Valentine_justMarried", "Valentine_key", "Valentine_lovearch",
+    "Valentine_lovers_bench", "Valentine_lovers_cart", "Valentine_moon_from_heaven", "Valentine_peacock_inlove", "Valentine_pigeons_love",
+    "Valentine_plush_cat", "Valentine_postsheep", "Valentine_serenade", "Valentine_statue_prince", "Valentine_topiary_hearts",
+    "Wagon_Mountain", "Watchtower", "WaterBungalowSP9", "Wedding3D_Decor", "WitchPot",
+    "WitchStatue_halloween", "airboat_plank", "airship_base", "ancient_bridge", "apple_tree",
+    "aquapark_helix", "aquariumHouse_fishing", "aquarium_v1", "arabic_al_ain_palace", "arabic_horse_statue",
+    "arabic_jin_lamp", "arabic_oasis", "arbor", "archaeology_atlantis", "archery_runner",
+    "asphalt", "bagrunning_easter", "ballShooting_helix", "baloon_castle", "baloons",
+    "bamboo_runner", "baobab", "bar_fin", "baseball", "basketball_1x2",
+    "beach_dance_floor", "beach_fruit_mix", "beach_party_bar", "beach_yellow_submarine", "bears_family",
+    "beauty_3_ballon", "beauty_5y_monument", "beauty_Coconut_bar", "beauty_DivingTower_olympiad", "beauty_Flower_gates",
+    "beauty_FootballDog", "beauty_Goalkeeper", "beauty_Gong", "beauty_Luxury_gates", "beauty_MovieFountain",
+    "beauty_OlympicFountain", "beauty_SketebordPlace", "beauty_SuperheroStand", "beauty_TrainingGround_olympiad", "beauty_acacia_giraffe",
+    "beauty_acrobats_stilts", "beauty_ancient_drums", "beauty_ancient_town", "beauty_animals_pasta", "beauty_araguaney",
+    "beauty_arch_balloon", "beauty_artist_quarter", "beauty_astronomer_tower", "beauty_atlantis_aquarium", "beauty_atlantis_boulevard",
+    "beauty_atlantis_hotel", "beauty_atlantis_ruins", "beauty_atlantis_statue", "beauty_atlas_hand", "beauty_balloon_dancer",
+    "beauty_baloon_flowers", "beauty_burdzh_halifa", "beauty_cancer_hermit", "beauty_candy_bridge", "beauty_candy_carousel",
+    "beauty_candy_house", "beauty_candy_tree", "beauty_carousel", "beauty_cave_in_jungle", "beauty_chalk_elephant",
+    "beauty_chalk_jiraffe", "beauty_chalk_lion", "beauty_chalk_zebra", "beauty_children_pirates", "beauty_china_town",
+    "beauty_coloring_cubes", "beauty_confectioner_cow", "beauty_coral_garden", "beauty_cottage_horn", "beauty_delonix",
+    "beauty_diamond", "beauty_dinosaur", "beauty_divers_boat", "beauty_dog_ballon", "beauty_dogs_arctic",
+    "beauty_dolphins", "beauty_dragon_boat", "beauty_dragon_dance", "beauty_easter_lantern", "beauty_easter_stump",
+    "beauty_elephants", "beauty_elf_house", "beauty_experiment_knowledgetower", "beauty_experiment_laboratory", "beauty_experiment_monument",
+    "beauty_experiment_plasma", "beauty_experiment_projector", "beauty_finic_palm", "beauty_fireworkshop", "beauty_fish_ballon",
+    "beauty_fish_market", "beauty_floral_sheeps", "beauty_flower_vase", "beauty_flowerhouse", "beauty_flyHouse",
+    "beauty_flyMedusa", "beauty_flyingship", "beauty_friendBench_fday", "beauty_ghost_ship", "beauty_goldberg_machine",
+    "beauty_gondola", "beauty_graffiti_competition", "beauty_greengrocery", "beauty_halloween_scary_crypt", "beauty_halloween_skeleton_orchestra",
+    "beauty_houseMaldives", "beauty_iceDeer", "beauty_ice_castle", "beauty_iceberg", "beauty_iceberg_penguin",
+    "beauty_icebreaker", "beauty_jirafe_dall", "beauty_juggler", "beauty_jungle_monk", "beauty_jungle_riverhouse",
+    "beauty_jungle_ruins", "beauty_jungle_sanctuary", "beauty_jungle_totems", "beauty_lake_house", "beauty_large_sundial",
+    "beauty_luxury_house", "beauty_mammoth", "beauty_party_pirates", "beauty_peacock_statue", "beauty_pine_tree",
+    "beauty_pirate_ship_bow", "beauty_pizzeria_pasta", "beauty_plane_steam", "beauty_plane_vought_v173", "beauty_playground2",
+    "beauty_plushSheep", "beauty_polarStation", "beauty_polar_bear", "beauty_poseidon", "beauty_prehistoric_house",
+    "beauty_primitive_artist", "beauty_puddleJumper", "beauty_pyramid_knife", "beauty_rhino", "beauty_rhododendron",
+    "beauty_runner_cablecar", "beauty_sailboat", "beauty_saloon", "beauty_santa_plank", "beauty_sea_researchers",
+    "beauty_seahouse_decoration", "beauty_sequoia", "beauty_serf_pool", "beauty_shipUlysses_ancient", "beauty_ship_pool",
+    "beauty_simulator_plane", "beauty_skatingPenguins", "beauty_snowfortress", "beauty_snowman_skater", "beauty_snowslide",
+    "beauty_solar_system", "beauty_souvenir_shop", "beauty_space_cosmonaut_cow", "beauty_space_mars_rover", "beauty_space_shuttle",
+    "beauty_stonehenge", "beauty_submarine", "beauty_sweet_hill", "beauty_swing_giraffe", "beauty_swing_palm",
+    "beauty_tarzan_tree", "beauty_thai_temple", "beauty_throwing_knives", "beauty_titans", "beauty_torchbearer_olympiad",
+    "beauty_treasure_chest", "beauty_tree_ballon", "beauty_triathlon_runner", "beauty_ufo", "beauty_venus_flytrap",
+    "beauty_waterSlide", "beauty_water_monster", "beauty_watercraft", "beauty_winners_place_olympiad", "beauty_winter_cannon",
+    "beauty_wisteria", "beauty_yeti", "berryTree_knife", "bigPicnic", "bigTractor_rescue",
+    "big_ban", "birthdaynineDecoration", "blender_knife", "boat00_fin", "boat02_fin",
+    "bookTree_jungle", "bridge00_fin", "bridge01_fin", "bronze_bull", "buek1",
+    "buek2", "buek3", "buek4", "buek5", "buek6",
+    "buek7", "buek8", "bullStatue_runner", "cactus", "cafe_rescue",
+    "camping", "camping_wildwest", "candyCastle_helix", "candyTrain_surfingers", "candy_fence",
+    "candy_gate", "candy_rainbow", "captainStatue_pirate", "caramelApple_surfingers", "carousel_elephants",
+    "carousel_helix", "carousel_runner", "cartRace_blackfriday", "castle", "chamber_halloween",
+    "champion_cup", "chess_arabic", "chickchik", "christmasComing", "christmasPlace_xmas2022",
+    "christmasTree_xmas2022", "christmas_santa_helper", "christmas_snowball", "coconutArmchair_bungalow", "colorFountain_match3",
+    "contactZoo_rescue", "cowboyStatue_wildwest", "craftsmanWorking_egypt", "crater", "crocodile",
+    "curling_runner", "dalesIcon", "danceMachine_helix", "dancingFountains", "darkForestWithTrainSign",
+    "deerRiding_plank", "dirigeablestatue", "discoForever_music", "discusThrower_ancient", "dragon_statue_SP_800",
+    "dynamometer_rescue", "easterHammock", "easterRailroad", "easterRibbons", "easter_factory",
+    "easter_pond", "easterhouse_tree", "easternBazar", "eifel_tower", "empire_state_v1",
+    "expandBuyAvailable", "fair_rescue", "fairy_water", "falcon_hunting", "farmmusic",
+    "figureSkating_xmas2022", "filmmaking_treasure", "flag", "flamingo", "floating_lanterns",
+    "flowerUnderHood", "flower_fence", "flower_hedge", "flower_house", "flower_swing",
+    "flowerbed1", "flowerbed2", "flowerbed_daffodils", "flowerbed_gerbera", "flowerbed_gladiolus",
+    "flowerbed_irises", "flowerbed_poppies", "flowering_tree", "flyBee", "flyDragon",
+    "flyLantern_santa", "flyPanda", "flyValentineBalloons", "flyValentineCupid", "flyingShip_treasure",
+    "foodshow_burger", "football", "fountain1", "fountain2", "fountain4",
+    "fountain_swan", "fountain_tree", "fountain_whale", "fountainbig", "freedom_v1",
+    "fruitFootball_knife", "fruitPark_knife", "fruitSlicing_knife", "gallery_art", "gameboy_helix",
+    "gardens_arabic", "ghostlyCarriage", "giantVegetables_rescue", "girrafe", "globalFlight_plane",
+    "gnomes", "golden_gate", "gorilla", "granite_fence", "gravelroad",
+    "green", "green10", "green12", "green14", "green16",
+    "green18", "green2", "green20", "green5", "green5_2",
+    "green8", "green9", "green_bird", "green_bunny", "green_dolphin",
+    "green_elephant", "green_peacock", "green_tree1", "green_tree2", "green_tree3",
+    "green_turtle", "greenbox_fin", "ground", "groundroad", "halloween_castle",
+    "halloween_cat", "halloween_fountain", "halloween_gargoyle", "halloween_ghost_ship", "halloween_haunted_house",
+    "halloween_museum", "halloween_pump", "halloween_sarcophagus", "halloween_scarecrow", "halloween_tree",
+    "halloween_witch", "halloween_witch_hire", "hay", "heartTree_valentine", "hedge",
+    "helmetOctopus_ancient", "hockeyField_runner", "hotSpring_match3", "iceArch_arctic", "iceDragon",
+    "iceLake", "iceSculptures_plank", "ice_dino", "iglu", "installation_art",
+    "island_knife", "jakaranda", "jellyBounce", "jetpack_plane", "juice_fountain",
+    "katamaran", "kitchen_plank", "koala", "labyrinth_easter", "lakehouse_boattrip",
+    "lakehouse_home", "landing_fence", "lastHour_plank", "lifeguard_hut", "lion",
+    "lion_slides", "lookout_point", "loveTower", "loveWings", "love_bridge",
+    "love_flowers", "lovegarden", "lowriders_rescue", "luxury_fence", "mammoth_match3",
+    "maya_calendar", "mechDragon_medieval", "mechStrawman", "minotaur_ancient", "monkeys_plank",
+    "monument1", "monument2", "monument3", "monument4", "monument5",
+    "monument_tools", "movieMonument", "movieMuseum", "museum_atlantis", "musicQuarter_music",
+    "ninja_knife", "noodle_shop", "oasis_egypt", "oilDerrick", "olympicVillage_runner",
+    "organ_music", "palmHotel", "palma1", "palma2", "palma4",
+    "palma_totem", "panda", "park1_1x1", "park1_1x2", "park2_1x1",
+    "parking_common", "parking_green_side", "parking_green_yard", "penguin", "penguinIcehole_xmas2022",
+    "petronas", "phone_box", "photoStand_valentine", "picnic", "pinball_helix",
+    "pineapple_knife", "pirateShip_treasure", "pirateStatue_treasure", "pizzacutting_pasta", "planeAircraftReward",
+    "plank1_fin", "plank3_fin", "playground", "plushUnicorn_valentine", "polarman_arctic",
+    "pond", "pondSwans", "pond_mother_earth", "pond_with_carp", "pool",
+    "pumpkinrace", "pyramide", "quay_fin", "quiosk_plank", "radar",
+    "radiorace_rescue", "railway_station", "rainbowFair_helix", "ratGarden_jump", "redLiliesPond",
+    "reef_hedge", "reserve1x2_v1", "reserve2x2_v1", "reserve3x3_v1", "retro_avto",
+    "ringGame_surfingers", "roadsIcon", "robocafe_cakeshop", "rockCat_music", "rodeoHelic_runner",
+    "roman_chariot", "rose_bush", "rugby_stadium", "sailHotel", "sailing_race",
+    "sand", "sausage_restorator", "scarab_egypt", "scarecrow", "scriptorium_medieval",
+    "sculptor_ancient", "seaStation_dive", "sea_gate", "seal", "seasonCinecamera_cinema",
+    "seasonUfoStudio_cinema", "shack", "shark_slide", "shearedTree", "shellgame_helix",
+    "ship", "shipAttraction_pirate", "shooting_rescue", "skin_city_sign_IronCitySign", "skin_city_sign_MillSign",
+    "skin_city_sign_SP_790_sign", "skin_city_sign_TV_city_sign", "skin_city_sign_arabic_sign", "skin_city_sign_asian_sign", "skin_city_sign_birthday_10years",
+    "skin_city_sign_birthday_sign", "skin_city_sign_cactus_sign", "skin_city_sign_christmas_sign", "skin_city_sign_cinema_sign", "skin_city_sign_cow_sign",
+    "skin_city_sign_def_sign", "skin_city_sign_disco_city_sign", "skin_city_sign_dry_fountain_sign", "skin_city_sign_easter_sign", "skin_city_sign_expedition22_2200_sign",
+    "skin_city_sign_expedition23_2200_sign", "skin_city_sign_expedition24_2300_sign", "skin_city_sign_expedition25_2300_sign", "skin_city_sign_expedition26_2400_sign", "skin_city_sign_expedition27_2400_sign",
+    "skin_city_sign_expedition28_2500_sign", "skin_city_sign_expedition29_2500_sign", "skin_city_sign_expedition30_2600_sign", "skin_city_sign_expedition31_2600_sign", "skin_city_sign_expedition32_2700_sign",
+    "skin_city_sign_expedition33_2700_sign", "skin_city_sign_expedition36_2900_sign", "skin_city_sign_farm_sign", "skin_city_sign_flowerbed_sign", "skin_city_sign_frank_halloween",
+    "skin_city_sign_furniture_sign", "skin_city_sign_halloween_sign", "skin_city_sign_harvest_sign", "skin_city_sign_ilove_sign", "skin_city_sign_lamp_board_sign",
+    "skin_city_sign_mechanic_sign", "skin_city_sign_music_sign", "skin_city_sign_mystical_events", "skin_city_sign_neon_sign", "skin_city_sign_palm_trees",
+    "skin_city_sign_regatta_2100_sign", "skin_city_sign_regatta_2300_sign", "skin_city_sign_regatta_2400_sign", "skin_city_sign_regatta_3000_sign", "skin_city_sign_regatta_3100_sign",
+    "skin_city_sign_rock_sign", "skin_city_sign_ruminant_machine", "skin_city_sign_smoothiebar_sign", "skin_city_sign_snowboard_sign", "skin_city_sign_stone_sign",
+    "skin_city_sign_vegas_sign", "skin_city_sign_wild_west_sign", "skin_city_sign_winged_sign", "skin_city_sign_wooden_sign", "skisCow_olympiad",
+    "slide_match3", "small_green_tree_04", "snow", "snowFight_plank", "snowboardSheep_olympiad",
+    "snowboard_runner", "southernflowers", "spacegarden", "spaceneedle_v1", "sphinx_v1",
+    "stairs_match3", "statue_artist", "statue_boat_gold", "statue_chemist", "statue_fireman",
+    "statue_flyboy", "statue_footballer", "statue_general", "statue_geneticist", "statue_musican",
+    "statue_neanderthal", "statue_policeman", "statue_thinker", "statue_tourist", "statue_writer",
+    "stork_statue", "stream_hedge", "streetCinema_cakeshop", "sunflower", "swan",
+    "sydney_opera", "tajmahal_v1", "teahouse", "tennis", "thanksgiving_CarrotTree",
+    "thanksgiving_vegetableBasket", "thanksgiving_vegetableHouse", "thanksgiving_vegetablePlace", "theaterOdeon_ancient", "throneHall_medieval",
+    "tiger", "topiary_castle", "topiary_competition", "toyMachine_helix", "track",
+    "tractor_and_hay", "trainchicken", "travelingTruck_rescue", "tree_adenium", "tree_shaping",
+    "tree_with_stairs", "trojanHorse_ancient", "trouveres_medieval", "turbosledge_santa", "ufoClue",
+    "upsideDownHouse_bungalow", "vegetables", "vetryak", "village_jungle", "water",
+    "water_flowers_1", "water_flowers_2", "waterfall_mountain_surfingers", "wateringCan_easter", "weeping_willow",
+    "weightlifter_runner", "well", "white_fence", "whiterose_tree", "wildpark",
+    "wildwest_cinema", "windmill", "winterYurt_xmas2022", "wishingWell", "workshopCrash",
+    "yacht", "yacht_fin", "yellow_roses", "young_gardeners", "zebra",
+    "zoo_caffe", "zoo_cinema", "zoo_cocktail_store", "zoo_contact", "zoo_decor",
+    "zoo_eatery", "zoo_icecream_shop", "zoo_restaurant", "zoo_shop",
+}
 -- OPTIONS
 -- ============================================
 
@@ -420,7 +1266,7 @@ local OPTIONS = {
     },
 
     {
-        label = "『مستوياتM3 المكتملة』", 
+        label = "『مستويات المطابقة المكتملة』", 
         type = "number",
         edit = "m3CompLvls"
     },
@@ -444,6 +1290,12 @@ local OPTIONS = {
     },
 
     {
+        label = "『إظهار جميع الأحداث』",
+        type = "checkbox",
+        edit = "showAllEvents"
+    },
+
+    {
         label ="『فتح الاطارات』", 
         type = "checkbox",
         edit = "unlockedFrames"
@@ -455,6 +1307,27 @@ local OPTIONS = {
         edit = "unlockedStyles"
     },
 
+    {
+        label = "『المظاهر』",
+        type = "checkbox",
+        edit = "skins"
+    },
+
+    {
+        label = "『الديكورات』",
+        type = "checkbox",
+        edit = "allDecor"
+    },
+    {
+        label = "『صور』",
+        type = "checkbox",
+        edit = "unlockAllAvatars"
+    },
+    {
+        label = "『الملصقات』",
+        type = "checkbox",
+        edit = "chatEmojis"
+    },
     {
         label = "『فتح الالقاب』", 
         type = "checkbox",
@@ -478,18 +1351,6 @@ local OPTIONS = {
         type = "checkbox",
         edit = "unlockLandExpansions"
     },
-
-    {
-        label ="『صور』", 
-        type = "checkbox",
-        edit = "unlockAllAvatars"
-    },
-
-    {
-        label ="『الملصقات』", 
-        type = "checkbox",
-        edit = "chatEmojis"
-    },
     {
         label = "『فتح التذكرة الذهبية + جميع الجوائز』",
         type = "checkbox",
@@ -501,28 +1362,122 @@ local OPTIONS = {
         edit = "goldenTicket2"
     },
     {
-        label = "『قطار القمح عدد 1 』",
+        label = "『العملات الذهبية』",
+        type = "number",
+        edit = "money"
+    },
+    {
+        label = "『الكاش』",
+        type = "number",
+        edit = "moneyCash"
+    },
+    {
+        label = "『تاريخ بدء اللعبة』",
+        type = "text",
+        edit = "gameStartDate"
+    },
+    {
+        label = "『ترقية الشونة الدائمة』",
+        type = "number",
+        edit = "barnCapacity"
+    },
+    {
+        label = "『عملات الإطار』",
+        type = "number",
+        edit = "frameCoins"
+    },
+    {
+        label = "『زيادة المنتجات بالشونة』",
+        type = "checkbox",
+        edit = "barnMenu"
+    },
+    {
+        label = "『قطار القمح 1️⃣』",
         type = "checkbox",
         edit = "trainPresetWheat"
     },
     {
-        label = "『قطار التاج عدد 500  』",
+        label = "『قطار التاج5️⃣0️⃣0️⃣』",
         type = "checkbox",
         edit = "trainPresetDiadem"
     },
     {
-        label = "『قطار الجزر 9999』",
+        label = "『قطار الجزر 9️⃣9️⃣9️⃣9️⃣』",
         type = "checkbox",
         edit = "trainPresetCarrot"
     }
 
 }
 
--- GameGuardian may not expose error() globally; use assert to raise a catchable Lua error.
-local function raiseError(message)
-    assert(false, tostring(message or "Unknown error"))
+-- المعرفات الداخلية للقسائم كما يستخدمها التطبيق والسيرفر.
+local APP_COUPON_IDS = {
+    ["قسيمة ترقية المصانع"] = "CouponUpgradeFactory",
+    ["قسيمة ترقية الجزيرة"] = "CouponUpgradeIsland",
+    ["قسيمة ترقية القطار"] = "CouponUpgradeTrain",
+    ["قسيمة التحميل"] = "CouponLoadTrainAirport",
+    ["قسيمة التوسعة"] = "freeExpansion",
+    ["قسيمة الشونة"] = "freeAmbarInc",
+    ["قسيمة التاجر"] = "CouponHireDealer"
+}
+
+-- تظهر موارد القائمة الفرعية داخل القائمة الرئيسية، مع إبقاء المفتاح داخليًا فقط.
+for _, category in ipairs(APP_RESOURCE_CATEGORIES) do
+    for _, item in ipairs(category.items) do
+        table.insert(OPTIONS, {
+            label = "『" .. category.name .. "』 " .. item.key,
+            type = "checkbox",
+            edit = "resourceItem",
+            resourceKey = resourceInternalKey(item.key),
+            resourceLabel = item.key,
+            resourceCategory = category.name,
+            couponName = APP_COUPON_IDS[item.key]
+        })
+    end
 end
 
+-- تقسيم الواجهة دون حذف أي خيار من السكربت.
+-- race: الحقول/الإدخالات والإطارات والشارات والأحداث والألقاب والأرضي والكروت والصور والملصقات.
+local RACE_CHECKBOXES = {
+    showAllEvents=true, unlockedFrames=true, unlockedStyles=true, UnlockedBadges=true,
+    unlockedExpRanks=true, goldenTicket=true, goldenTicket2=true, unlockAllCards=true, unlockLandExpansions=true,
+}
+local function optionInSection(option, section)
+    local cat = option.resourceCategory or ""
+    if section == "race" then
+        return option.type ~= "checkbox" or RACE_CHECKBOXES[option.edit] == true
+    elseif section == "coupons" then
+        return cat == "✉️القسائم✉️"
+    elseif section == "trains" then
+        return option.edit == "trainPresetWheat" or option.edit == "trainPresetDiadem" or option.edit == "trainPresetCarrot"
+    elseif section == "lab" then
+        return cat == " ♡BS♡"
+    elseif section == "decoration" then
+        return option.edit == "skins" or option.edit == "allDecor" or option.edit == "unlockAllAvatars" or option.edit == "chatEmojis"
+    elseif section == "barn" then
+        return option.edit == "barnMenu"
+    elseif section == "other" then
+        if option.type ~= "checkbox" then return false end
+        if RACE_CHECKBOXES[option.edit] then return false end
+        if option.edit == "trainPresetWheat" or option.edit == "trainPresetDiadem" or option.edit == "trainPresetCarrot" then return false end
+        if option.edit == "skins" or option.edit == "allDecor" or option.edit == "unlockAllAvatars" or option.edit == "chatEmojis" or option.edit == "barnMenu" then return false end
+        if cat == "✉️القسائم✉️" or cat == " ♡BS♡" then return false end
+        return true
+    end
+    return true
+end
+local requestedSection = rawget(_G, "BS_TOOL_SECTION") or "race"
+local filteredOptions = {}
+for _, option in ipairs(OPTIONS) do
+    if optionInSection(option, requestedSection) then table.insert(filteredOptions, option) end
+end
+OPTIONS = filteredOptions
+
+-- GameGuardian may not expose error() globally; use assert to raise a catchable Lua error.
+local function raiseError(message)
+    -- assert يعمل في جميع نسخ GameGuardian ويُبقي تفاصيل الخطأ قابلة للالتقاط
+    -- بواسطة pcall في المشغل الخارجي.
+    assert(false, tostring(message or "حدث خطأ غير معروف"))
+end
 -- ============================================
 -- READ FILE
 -- ============================================
@@ -634,7 +1589,6 @@ local function write_file(path, data)
     end
 
     local tempPath = path .. ".tmp"
-
     -- اكتب الناتج في ملف مؤقت، ولا تلمس ملف الحفظ الأصلي بعد.
     local temp, tempErr = io.open(tempPath, "wb")
     if not temp then raiseError("تعذر إنشاء الملف المؤقت: " .. tostring(tempErr)) end
@@ -655,12 +1609,9 @@ local function write_file(path, data)
         raiseError("فشل التحقق من الملف المؤقت؛ لم يتم تغيير ملف الحفظ الأصلي.")
     end
 
-    -- تم إلغاء إنشاء النسخة الاحتياطية بناءً على طلب المستخدم.
-    -- سيتم استبدال الملف الهدف مباشرة بعد التحقق من الملف المؤقت.
-
     local renameOk, renameErr = os.rename(tempPath, path)
     if not renameOk then
-        raiseError("فشل استبدال ملف الحفظ مباشرة: " .. tostring(renameErr))
+        raiseError("فشل استبدال ملف الحفظ: " .. tostring(renameErr))
     end
 end
 
@@ -670,10 +1621,8 @@ end
 -- ============================================
 
 local function saveErrorLog(details)
-    -- لا يتم حفظ تفاصيل الأخطاء أو المسارات محليًا.
     return false
 end
-
 local function post_file(url, data)
 
     local ok, response = pcall(function()
@@ -688,7 +1637,7 @@ local function post_file(url, data)
     end)
 
     if not ok then
-        raiseError("تعذر تنفيذ العملية حاليًا")
+        raiseError("تعذر الاتصال بالسيرفر أثناء تنفيذ العملية: " .. tostring(response))
     end
 
     -- فحص نوع الاستجابة
@@ -708,11 +1657,14 @@ local function post_file(url, data)
     end
 
     if code < 200 or code >= 300 then
-        raiseError("تعذر تنفيذ العملية حاليًا")
+        local detail = tostring(content or "")
+        if detail == "" then detail = "(رد الخادم فارغ)" end
+        if #detail > 3000 then detail = detail:sub(1, 3000) .. "\n[تم اختصار الرد]" end
+        raiseError("استجابة الخادم HTTP " .. tostring(code) .. ":\n" .. detail)
     end
 
     if type(content) ~= "string" or content == "" then
-        raiseError("تعذر تنفيذ العملية حاليًا")
+        raiseError("السيرفر أعاد HTTP " .. tostring(code) .. " دون بيانات صالحة للملف. الرد: " .. tostring(content or "(رد الخادم فارغ)"))
     end
 
     return content
@@ -744,11 +1696,6 @@ local function decode_stage()
             encrypted
         )
 
-    write_file(
-        OUTPUT,
-        decoded
-    )
-
     gg.alert("✨💗 اللهم صل على  םבםב ﷺ💗✨"  )
 
     return decoded
@@ -773,6 +1720,13 @@ local function build_edits_json(
     local trainOrderBlue = false
     local trainClearBox = false
     local trainPreset = nil
+    local resourceSpec = nil
+    local skinsSpec = nil
+    local decorSpec = nil
+    local resourceBatch = nil
+    local couponSpec = nil
+    local barnSpec = nil
+    local barnBatch = nil
 
 
     -- ========================================
@@ -812,6 +1766,34 @@ local function build_edits_json(
         elseif edit.type == "trainPresetCarrot" then
             if trainPreset ~= nil then raiseError("اختر خيار قطار واحد فقط.") end
             trainPreset = {productId = "carrot", productCount = 9999}
+        elseif edit.type == "skins" then
+            if skinsSpec ~= nil then raiseError("اختر المظاهر مرة واحدة فقط.") end
+            skinsSpec = edit.value
+        elseif edit.type == "allDecor" then
+            if decorSpec ~= nil then raiseError("اختر الديكورات مرة واحدة فقط.") end
+            decorSpec = edit.value
+        elseif edit.type == "resource" then
+            if resourceSpec ~= nil then raiseError("استخدم موردًا واحدًا في كل طلب.") end
+            if type(edit.value) == "table" then
+                resourceSpec = edit.value
+            else
+                local name, amount = tostring(edit.value or ""):match("^%s*([A-Za-z][A-Za-z0-9_]*)%s*=%s*(%d+)%s*$")
+                if not name or not amount then raiseError("صيغة المورد يجب أن تكون الاسم=العدد، مثل wheat=9999.") end
+                resourceSpec = {name = name, value = tonumber(amount)}
+            end
+        elseif edit.type == "resourceBatch" then
+            if resourceBatch ~= nil then raiseError("اختر مجموعة موارد واحدة فقط.") end
+            resourceBatch = edit.value
+        elseif edit.type == "coupon" then
+            if couponSpec ~= nil then raiseError("استخدم قسيمة واحدة في كل طلب.") end
+            if type(edit.value) ~= "table" or not edit.value.name then raiseError("بيانات القسيمة غير صحيحة.") end
+            couponSpec = edit.value
+        elseif edit.type == "barnItem" then
+            if barnSpec ~= nil then raiseError("اختر عنصر شونة واحدًا فقط.") end
+            barnSpec = edit.value
+        elseif edit.type == "barnBatch" then
+            if barnBatch ~= nil then raiseError("اختر مجموعة شونة واحدة فقط.") end
+            barnBatch = edit.value
 
         end
 
@@ -833,7 +1815,14 @@ local function build_edits_json(
            edit.type ~= "trainAll" and
            edit.type ~= "trainPresetWheat" and
            edit.type ~= "trainPresetDiadem" and
-           edit.type ~= "trainPresetCarrot" then
+           edit.type ~= "trainPresetCarrot" and
+           edit.type ~= "resource" and
+           edit.type ~= "resourceBatch" and
+           edit.type ~= "coupon" and
+           edit.type ~= "barnItem" and
+           edit.type ~= "barnBatch" and
+           edit.type ~= "skins" and
+           edit.type ~= "allDecor" then
 
             local key =
                 json_escape(
@@ -898,6 +1887,51 @@ local function build_edits_json(
         trainClearBox = true
     end
 
+    if skinsSpec ~= nil then
+        if skinsSpec.all then
+            table.insert(parts, '"skins":{"all":true}')
+        else
+            local values = {}
+            for _, item in ipairs(skinsSpec) do table.insert(values, '"' .. json_escape(item) .. '"') end
+            table.insert(parts, '"skins":{"selected":[' .. table.concat(values, ',') .. ']}')
+        end
+    end
+    if decorSpec ~= nil then
+        local decorJson = '"allDecor":{"count":' .. tostring(math.floor(decorSpec.count or 1))
+        if decorSpec.all then
+            decorJson = decorJson .. ',"all":true}'
+        else
+            local values = {}
+            for _, item in ipairs(decorSpec.items or {}) do table.insert(values, '"' .. json_escape(item) .. '"') end
+            decorJson = decorJson .. ',"items":[' .. table.concat(values, ',') .. ']}'
+        end
+        table.insert(parts, decorJson)
+    end
+
+    if resourceSpec ~= nil then
+        table.insert(parts, '"resource":{"name":"' .. json_escape(resourceSpec.name) .. '","value":' .. tostring(resourceSpec.value) .. '}')
+    end
+    if resourceBatch ~= nil then
+        local batchParts = {}
+        for _, item in ipairs(resourceBatch) do
+            table.insert(batchParts, '{"name":"' .. json_escape(item.name) .. '","value":' .. tostring(item.value) .. '}')
+        end
+        table.insert(parts, '"resourceBatch":[' .. table.concat(batchParts, ',') .. ']')
+    end
+    if couponSpec ~= nil then
+        table.insert(parts, '"coupon":{"name":"' .. json_escape(couponSpec.name) .. '","value":' .. tostring(couponSpec.value) .. '}')
+    end
+    if barnSpec ~= nil then
+        table.insert(parts, '"barnItem":{"name":"' .. json_escape(barnSpec.name) .. '","value":' .. tostring(barnSpec.value) .. '}')
+    end
+    if barnBatch ~= nil then
+        local batchParts = {}
+        for _, item in ipairs(barnBatch) do
+            table.insert(batchParts, '{"name":"' .. json_escape(item.name) .. '","value":' .. tostring(item.value) .. '}')
+        end
+        table.insert(parts, '"barnBatch":[' .. table.concat(batchParts, ',') .. ']')
+    end
+
     if trainProductId ~= nil or trainProductCount ~= nil then
         if trainProductId == nil or trainProductId == "" or trainProductCount == nil then
             raiseError("يجب إدخال نوع المنتج والكمية لمحرر القطار.")
@@ -913,12 +1947,14 @@ local function build_edits_json(
         )
     end
 
-    return "{" ..
+    local editsJson = "{" ..
            table.concat(
                parts,
                ","
            ) ..
            "}"
+    editsJson = editsJson:gsub('"unlockedFrames":"true"', '"unlockedFrames":true')
+    return editsJson
 
 end
 
@@ -930,13 +1966,30 @@ end
 local function edit_stage(
     decoded
 )
+    local preselectedEdits = rawget(_G, "BS_PRESELECTED_EDITS")
+    local edits = preselectedEdits
+
+
+    if not preselectedEdits then
+    -- ترتيب الواجهة: كل حقول الإدخال أولًا، ثم خيارات التفعيل أسفلها.
+    local orderedOptions = {}
+    for _, option in ipairs(OPTIONS) do
+        if option.type ~= "checkbox" then
+            table.insert(orderedOptions, option)
+        end
+    end
+    for _, option in ipairs(OPTIONS) do
+        if option.type == "checkbox" then
+            table.insert(orderedOptions, option)
+        end
+    end
 
     local labels = {}
     local defaults = {}
     local types = {}
 
 
-    for i, option in ipairs(OPTIONS) do
+    for i, option in ipairs(orderedOptions) do
 
         labels[i] =
             option.label
@@ -955,18 +2008,31 @@ local function edit_stage(
     end
 
 
-    local input =
-        gg.prompt(
+    local input
+    if requestedSection == "race" then
+        -- قسم التعديل والسباق يبقى كما هو: حقول إدخال + خانات تفعيل.
+        input = gg.prompt(
             labels,
             defaults,
             types
         )
-
+    else
+        -- الأقسام المنقولة تستخدم قائمة اختيار فقط، بدون لوحة كيبورد.
+        local selected = gg.multiChoice(
+            labels,
+            nil,
+            "💜ᗷᗩᔕᗰᗩᒪᗩ💜"
+        )
+        if selected then
+            input = {}
+            for i, checked in pairs(selected) do
+                input[i] = checked == true
+            end
+        end
+    end
 
     if not input then
-
         return
-
     end
 
 
@@ -974,10 +2040,16 @@ local function edit_stage(
     -- COLLECT EDITS
     -- ========================================
 
-    local edits = {}
+    edits = {}
+    local barnMenuRequested = false
+    local resourceMenuRequested = false
+    local selectedResources = {}
+    local selectedCoupons = {}
+    local skinsRequested = false
+    local decorRequested = false
 
 
-    for i, option in ipairs(OPTIONS) do
+    for i, option in ipairs(orderedOptions) do
 
     local value = input[i]
 
@@ -985,12 +2057,29 @@ local function edit_stage(
 
         -- لا تنفذ إلا الخيارات التي حددها المستخدم
         if value == true then
-
-            table.insert(edits, {
-                type = option.edit,
-                value = true
-            })
-
+            if option.edit == "barnMenu" then
+                barnMenuRequested = true
+            elseif option.edit == "resourceMenu" then
+                resourceMenuRequested = true
+            elseif option.edit == "skins" then
+                skinsRequested = true
+            elseif option.edit == "allDecor" then
+                decorRequested = true
+            elseif option.edit == "resourceItem" then
+                if option.resourceCategory == "✉️القسائم✉️" then
+                    table.insert(selectedCoupons, {
+                        name = option.couponName,
+                        label = option.resourceLabel
+                    })
+                else
+                    table.insert(selectedResources, {
+                        name = option.resourceKey,
+                        label = option.resourceLabel
+                    })
+                end
+            else
+                table.insert(edits, { type = option.edit, value = true })
+            end
         end
 
     else
@@ -1011,6 +2100,98 @@ local function edit_stage(
 end
 
 
+    if barnMenuRequested then
+        local selected = choose_catalog_items(APP_BARN_CATEGORIES, "الشونة")
+        if not selected then return end
+        table.insert(edits, {type = "barnBatch", value = selected})
+    end
+    if resourceMenuRequested then
+        local selected = choose_catalog_items(APP_RESOURCE_CATEGORIES, "تعديل الموارد")
+        if not selected then return end
+        table.insert(edits, {type = "resourceBatch", value = selected})
+    end
+
+    if skinsRequested then
+        local labels = {"✅ تحديد جميع المظاهر"}
+        for _, id in ipairs(APP_SKIN_IDS) do table.insert(labels, id) end
+        local selected = gg.multiChoice(labels, nil, "المظاهر — اختر المظاهر كما في التطبيق")
+        if not selected then return end
+        local values = {}
+        local selectAll = selected[1] == true
+        if selectAll then
+            for _, id in ipairs(APP_SKIN_IDS) do table.insert(values, id) end
+        else
+            for i, checked in pairs(selected) do
+                if checked and i > 1 then table.insert(values, APP_SKIN_IDS[i - 1]) end
+            end
+        end
+        if #values == 0 then gg.alert("اختر مظهرًا واحدًا على الأقل."); return end
+        table.insert(edits, {type = "skins", value = selectAll and {all = true} or values})
+    end
+
+    if decorRequested then
+        local labels = {"✅ تحديد جميع الديكورات"}
+        for _, id in ipairs(APP_DECOR_IDS) do table.insert(labels, id) end
+        local selected = gg.multiChoice(labels, nil, "الديكورات — اختر الديكورات كما في التطبيق")
+        if not selected then return end
+        local values = {}
+        local selectAll = selected[1] == true
+        if selectAll then
+            for _, id in ipairs(APP_DECOR_IDS) do table.insert(values, id) end
+        else
+            for i, checked in pairs(selected) do
+                if checked and i > 1 then table.insert(values, APP_DECOR_IDS[i - 1]) end
+            end
+        end
+        if #values == 0 then gg.alert("اختر ديكورًا واحدًا على الأقل."); return end
+        local countInput = gg.prompt({"عدد كل ديكور (كما في التطبيق)"}, {"1"}, {"number"})
+        local count = countInput and tonumber(countInput[1])
+        if not count or count <= 0 then return end
+        table.insert(edits, {type = "allDecor", value = {count = math.floor(count), all = selectAll, items = selectAll and nil or values}})
+    end
+
+    if #selectedResources > 0 then
+        local resourceInput = gg.prompt(
+        {"🌺اكتب العدد المطلوب🌺"}, 
+            {"0"},
+            {"number"}
+        )
+        if not resourceInput or resourceInput[1] == nil or tostring(resourceInput[1]) == "" then
+            return
+        end
+        local resourceBatch = {}
+        for _, item in ipairs(selectedResources) do
+            table.insert(resourceBatch, {
+                name = item.name,
+                label = item.label,
+                value = tonumber(resourceInput[1])
+            })
+        end
+        table.insert(edits, {type = "resourceBatch", value = resourceBatch})
+    end
+
+    if #selectedCoupons > 0 then
+        local couponInput = gg.prompt(
+            {"🌺اكتب عدد كل قسيمة🌺"},
+            {"0"},
+            {"number"}
+        )
+        if not couponInput or couponInput[1] == nil or tostring(couponInput[1]) == "" then
+            return
+        end
+        local couponValue = tonumber(couponInput[1])
+        if not couponValue or couponValue <= 0 then
+            gg.alert("❌ عدد القسائم غير صحيح")
+            return
+        end
+        for _, item in ipairs(selectedCoupons) do
+            table.insert(edits, {
+                type = "coupon",
+                value = {name = item.name, value = math.floor(couponValue), label = item.label}
+            })
+        end
+    end
+
     if #edits == 0 then
 
         gg.alert(
@@ -1021,6 +2202,8 @@ end
 
     end
 
+
+    end
 
     -- ========================================
     -- VALIDATE NUMBERS
@@ -1137,6 +2320,10 @@ end
     end
 
 
+    if decoded == nil then
+        return edits
+    end
+
     -- ========================================
     -- EXECUTE
     -- ========================================
@@ -1154,70 +2341,78 @@ end
     -- ========================================
 
     local current_data = decoded
-    local pending_edits = {}
     local applied_edits = {}
     local skipped_edits = {}
+    local pending_edits = {}
 
+    -- تبقى واجهة المستخدم دفعة واحدة، لكن التنفيذ يكون عنصرًا عنصرًا.
+    -- إذا فشل عنصر، لا يمنع بقية العناصر من التنفيذ.
     for _, edit in ipairs(edits) do
-        table.insert(pending_edits, edit)
+        if edit.type == "resourceBatch" or edit.type == "barnBatch" then
+            local singleType = edit.type == "resourceBatch" and "resource" or "barnItem"
+            for _, item in ipairs(edit.value or {}) do
+                table.insert(pending_edits, {type = singleType, value = item})
+            end
+        else
+            table.insert(pending_edits, edit)
+        end
     end
 
-    local attempts = 0
-    while #pending_edits > 0 and attempts <= #edits do
-        attempts = attempts + 1
-        local batch_json = build_edits_json(pending_edits)
+    for _, edit in ipairs(pending_edits) do
+        -- التطبيق الأصلي يضيف LR2_Currency قبل أول Var إذا لم تكن موجودة،
+        -- ثم يمرر الملف للمحرر. نطبق نفس الخطوة في Lua حتى يعمل مع السيرفر القديم.
+        if edit.type == "frameCoins" then
+            local frameValue = tonumber(edit.value)
+            if not frameValue or frameValue < 0 then
+                table.insert(skipped_edits, {
+                    type = edit.type,
+                    name = "LR2_Currency",
+                    reason = "قيمة عملات الإطار غير صالحة"
+                })
+                goto continue_edit
+            end
+            if not current_data:match("<Var%s+[^>]-name=[\"']LR2_Currency[\"']") then
+                local inserted
+                current_data, inserted = current_data:gsub(
+                    "(<Var%s)",
+                    '<Var name="LR2_Currency" v="' .. tostring(math.floor(frameValue)) .. '" t="i"/>\n%1',
+                    1
+                )
+                if inserted == 0 then
+                    table.insert(skipped_edits, {
+                        type = edit.type,
+                        name = "LR2_Currency",
+                        reason = "لم يجد التطبيق عقدة Var لإضافة عملات الإطار"
+                    })
+                    goto continue_edit
+                end
+            end
+        end
+        local batch_json = build_edits_json({edit})
         local url = EDIT_URL .. "?edits=" .. url_encode(batch_json)
-
         local ok, result = pcall(function()
             return post_file(url, current_data)
         end)
-
         if ok then
             current_data = result
-            for _, edit in ipairs(pending_edits) do
-                table.insert(applied_edits, edit)
-            end
-            pending_edits = {}
-            break
+            table.insert(applied_edits, edit)
+        else
+            table.insert(skipped_edits, {
+                type = edit.type,
+                name = type(edit.value) == "table" and edit.value.name or tostring(edit.type),
+                reason = tostring(result)
+            })
         end
-
-        local err_text = tostring(result)
-        local missing_var = err_text:match("Var:%s*([%w_]+)")
-
-        if not missing_var then
-            raiseError(err_text)
-        end
-
-        -- مطابقة اسم المتغير الوارد من السيرفر مع نوع التعديل.
-        local missing_lower = string.lower(missing_var)
-        local skipped_index = nil
-        for i, edit in ipairs(pending_edits) do
-            if string.lower(tostring(edit.type)):gsub("[^%w]", "") ==
-               string.lower(missing_var):gsub("[^%w]", "") then
-                skipped_index = i
-                break
-            end
-        end
-
-        if not skipped_index then
-            -- إذا لم نتمكن من تحديد التعديل المرتبط بالمتغير،
-            -- لا نتجاهل الخطأ عشوائيًا حتى لا نُفسد النتيجة.
-            raiseError(err_text)
-        end
-
-        local skipped = table.remove(pending_edits, skipped_index)
-        table.insert(skipped_edits, {
-            type = skipped.type,
-            reason = "المتغير غير موجود: " .. missing_var
-        })
-        -- تعاد الدفعة المتبقية كلها في طلب واحد.
+        ::continue_edit::
     end
 
     if #applied_edits == 0 then
         local details = "لم ينجح أي تعديل."
         if #skipped_edits > 0 then
-            details = details .. "\nتم تخطي " .. #skipped_edits ..
-                " تعديل/تعديلات بسبب متغيرات مفقودة."
+            details = details .. "\nالعناصر الفاشلة:"
+            for _, failed in ipairs(skipped_edits) do
+                details = details .. "\n- " .. tostring(failed.name) .. ": " .. tostring(failed.reason)
+            end
         end
         raiseError(details)
     end
@@ -1247,11 +2442,29 @@ local message =
         elseif edit.type == "goldenTicket2" then
             message = message .. "✔ تم فتح التذكرة الذهبية 2 والمسارين\n"
         elseif edit.type == "trainPresetWheat" then
-            message = message .. "✔ تم تطبيق القمح: العدد 1\n"
+            message = message .. "✔ تم تطبيق القمح: العدد 1 \n"
         elseif edit.type == "trainPresetDiadem" then
-            message = message .. "✔ تم تطبيق التاج: العدد 500\n"
+            message = message .. "✔ تم تطبيق التاج: العدد 500 \n"
         elseif edit.type == "trainPresetCarrot" then
-            message = message .. "✔ تم تطبيق الجزر: العدد 9999\n"
+            message = message .. "✔ تم تطبيق الجزر: العدد9999\n"
+        elseif edit.type == "money" then
+            message = message .. "✔ تم تعديل رصيد النقود إلى: " .. tostring(edit.value) .. "\n"
+        elseif edit.type == "moneyCash" then
+            message = message .. "✔ تم تعديل T-Cash إلى: " .. tostring(edit.value) .. "\n"
+        elseif edit.type == "gameStartDate" then
+            message = message .. "✔ تم تعديل تاريخ البداية إلى: " .. tostring(edit.value) .. "\n"
+        elseif edit.type == "barnCapacity" then
+            message = message .. "✔ تم تعديل سعة الحظيرة إلى: " .. tostring(edit.value) .. "\n"
+        elseif edit.type == "frameCoins" then
+            message = message .. "✔ تم تعديل عملات الإطار إلى: " .. tostring(edit.value) .. "\n"
+        elseif edit.type == "showAllEvents" then
+            message = message .. "✔ تم إظهار وتفعيل جميع الأحداث الموجودة في ملف الحفظ\n"
+        elseif edit.type == "resource" then
+            message = message .. "✔ تم تعديل المورد المختار: " .. tostring(edit.value.name) .. "\n"
+        elseif edit.type == "coupon" then
+            message = message .. "✔ تم إضافة القسيمة: " .. tostring(edit.value.name) .. " بالعدد " .. tostring(edit.value.value) .. "\n"
+        elseif edit.type == "barnItem" then
+            message = message .. "✔ تم تعديل صنف الشونة المختار: " .. tostring(edit.value.name) .. "\n"
         elseif edit.type == "level" then
 
             message =
@@ -1375,6 +2588,11 @@ local message =
                 message ..
                 "✔ تم فتح الستايلات\n"
 
+        elseif edit.type == "skins" then
+            message = message .. "✔ تم تفعيل المظاهر المحددة كما في التطبيق\n"
+
+        elseif edit.type == "allDecor" then
+            message = message .. "✔ تم تفعيل الديكورات المحددة وإضافتها للمخزون بالعدد المحدد\n"
 
         elseif edit.type == "unlockedExpRanks" then
 
@@ -1416,8 +2634,13 @@ local message =
     
 
 
+    message = message .. "\n✅ نجح: " .. tostring(#applied_edits) .. " عنصر"
     if #skipped_edits > 0 then
-        message = message .. "\nالآن افتح اللعبة 🎮"
+        message = message .. "\n\n❌ فشل " .. tostring(#skipped_edits) .. " عنصر:"
+        for _, failed in ipairs(skipped_edits) do
+            message = message .. "\n• " .. tostring(failed.name) .. " — " .. tostring(failed.reason)
+        end
+        message = message .. "\n\nتم حفظ العناصر الناجحة فقط."
     end
 
     gg.alert(
@@ -1429,15 +2652,20 @@ end
 
 -- Standalone runner removed; launcher calls this function.
 return function()
+    -- المرحلة الأولى: عرض الخيارات فقط، بدون فك الملف.
+    if rawget(_G, "BS_COLLECT_ONLY") then
+        return edit_stage(nil)
+    end
+
     local ok, result = pcall(function()
+        -- لا يبدأ فك الملف إلا بعد اكتمال الاختيار.
         local decoded = decode_stage()
         edit_stage(decoded)
     end)
     if not ok then
-        gg.alert("❌ حدث خطأ أثناء العملية")
+        gg.alert("❌ حدث خطأ أثناء تنفيذ العملية، حاول مرة أخرى.")
     end
 end
-
 ]=]
 -- CARDS
 local SRC_CARDS = [=[
@@ -1943,8 +3171,8 @@ local function post(
             body
         )
     end)
-    if not requestOk then return nil, "تعذر تنفيذ العملية حاليًا" end
-    if not r then return nil, "تعذر تنفيذ العملية حاليًا" end
+    if not requestOk then return nil, "تعذر إرسال الطلب: " .. tostring(r) end
+    if not r then return nil, "لم تصل استجابة من السيرفر (لا يوجد رد HTTP)." end
 
     local code =
         tonumber(r.code or 0) or 0
@@ -1953,7 +3181,9 @@ local function post(
         tostring(r.content or "")
 
     if code < 200 or code >= 300 then
-        return nil, "تعذر تنفيذ العملية حاليًا"
+        local detail = content ~= "" and content or "(رد الخادم فارغ)"
+        if #detail > 3000 then detail = detail:sub(1, 3000) .. "\n[تم اختصار الرد]" end
+        return nil, "استجابة الخادم HTTP " .. tostring(code) .. ":\n" .. detail
     end
 
     return content
@@ -1965,9 +3195,8 @@ end
 -- ============================================================
 
 local function show_error(title, message)
-    gg.alert("❌ حدث خطأ أثناء العملية")
+    gg.alert("❌ حدث خطأ أثناء تنفيذ العملية، حاول مرة أخرى.")
 end
-
 -- ============================================================
 -- DECODE
 -- ============================================================
@@ -2490,44 +3719,71 @@ end
 -- ============================================================
 -- RESULT
 -- ============================================================
+local function card_failure_reason(item)
+    local reason = item.error or item.decryptError or item.reason or item.message or item.detail
+    if reason and tostring(reason) ~= "" then
+        return tostring(reason)
+    end
+    local status = item.httpStatus and ("HTTP " .. tostring(item.httpStatus)) or nil
+    local responseText = item.responseText
+    if responseText and tostring(responseText) ~= "" then
+        local text = tostring(responseText)
+        if #text > 900 then text = text:sub(1, 900) .. "…" end
+        return (status and status .. " — " or "") .. text
+    end
+    if type(item.response) == "table" then
+        local encoded = json_encode(item.response)
+        if encoded and encoded ~= "{}" then
+            if #encoded > 900 then encoded = encoded:sub(1, 900) .. "…" end
+            return (status and status .. " — " or "") .. encoded
+        end
+    end
+    if status then return status .. " — لم يقبل SendBox البطاقة" end
+    return "لم يرسل السيرفر تفاصيل إضافية"
+end
+
+local function card_failure_details(result)
+    local lines = {}
+    local list = result.failures or result.failedCards or result.errors or result.details
+    if type(list) == "table" then
+        for _, item in ipairs(list) do
+            if type(item) == "table" then
+                local id = item.cardId or item.id or item.card or item.name or "بطاقة غير معروفة"
+                lines[#lines + 1] = "• " .. tostring(id) .. " — " .. card_failure_reason(item)
+            else
+                lines[#lines + 1] = "• " .. tostring(item)
+            end
+        end
+    elseif type(list) == "string" and list ~= "" then
+        lines[#lines + 1] = list
+    end
+    local failedIds = result.failedCardIds or result.failedIds
+    if type(failedIds) == "table" then
+        for _, id in ipairs(failedIds) do
+            lines[#lines + 1] = "• " .. tostring(id) .. " — لم يرسل السيرفر سببًا تفصيليًا"
+        end
+    end
+    if #lines == 0 and (tonumber(result.failed or 0) or 0) > 0 then
+        lines[#lines + 1] = "• السيرفر أعاد عدد الفشل فقط ولم يرسل أسباب البطاقات."
+        lines[#lines + 1] = "• رد السيرفر: " .. tostring(json_encode(result))
+    end
+    return table.concat(lines, "\n")
+end
 
 local function show_result(
     result,
     selected
 )
-
-    local sent =
-        tonumber(
-            result.sentCards or 0
-        ) or 0
-
-    local failed =
-        tonumber(
-            result.failed or 0
-        ) or 0
-
-    local total =
-        tonumber(
-            result.totalCards or
-            #selected.cardIds
-        ) or
-        #selected.cardIds
-
+    local sent = tonumber(result.sentCards or 0) or 0
+    local failed = tonumber(result.failed or 0) or 0
+    local total = tonumber(result.totalCards or #selected.cardIds) or #selected.cardIds
     gg.alert(
         "📊 النتيجة\n\n" ..
-        "📤 نجح: " ..
-        tostring(sent) ..
-
-        "\n❌ فشل: " ..
-        tostring(failed) ..
-
-        "\n📦 الإجمالي: " ..
-        tostring(total)
+        "📤 نجح: " .. tostring(sent) ..
+        "\n❌ فشل: " .. tostring(failed) ..
+        "\n📦 الإجمالي: " .. tostring(total)
     )
 end
-
-
--- ============================================================
 -- CARD MENU
 -- ============================================================
 
@@ -2804,12 +4060,8 @@ end
 --------------------------------------------------
 
 local function copyError(text)
-    gg.alert("❌ حدث خطأ أثناء العملية")
+    gg.alert("❌ حدث خطأ أثناء تنفيذ العملية، حاول مرة أخرى.")
 end
-
---------------------------------------------------
--- قراءة الملف
---------------------------------------------------
 
 local function readFile(path)
 
@@ -3911,11 +5163,9 @@ local function buildRequest(
     }
 
 end
-
 --------------------------------------------------
 -- طلب FetchCity
 --------------------------------------------------
-
 local function requestFetchCity(
     request
 )
@@ -4100,13 +5350,27 @@ return { select = selectFarm, run = runFarm }
 ]=]
 
 local function report_tool_error(title, err)
-    gg.alert("❌ حدث خطأ أثناء العملية")
+    local message = tostring(err or "خطأ غير معروف")
+    if #message > 2500 then
+        message = message:sub(1, 2500) .. "\n..."
+    end
+    local fullMessage = "❌ " .. tostring(title or "حدث خطأ") .. "\n\nالتفاصيل:\n" .. message
+    -- بعض إصدارات GG تقص النص الطويل في alert؛ الحافظة والسجل يضمنان عدم ضياع التفاصيل.
+    if gg.copyText then pcall(gg.copyText, fullMessage) end
+    local log = io.open("/sdcard/BS64_error.log", "w")
+    if log then
+        log:write(fullMessage)
+        log:close()
+    end
+    gg.alert(fullMessage .. "\n\nتم نسخ التفاصيل إلى الحافظة وحفظها في:\n/sdcard/BS64_error.log")
 end
 
-local function run_source(src, label)
+local function run_source(src, label, section)
+    _G.BS_TOOL_SECTION = section or "race"
     local chunk, err = load(src, label)
 
     if not chunk then
+        _G.BS_TOOL_SECTION = nil
         report_tool_error("تعذر تحميل الأداة: " .. tostring(label), err)
         return
     end
@@ -4115,16 +5379,33 @@ local function run_source(src, label)
 
     if not ok then
         report_tool_error("خطأ أثناء تشغيل الأداة: " .. tostring(label), result)
+        _G.BS_TOOL_SECTION = nil
         return
     end
 
     if type(result) == "function" then
-        local ok2, err2 = pcall(result)
+        local ok2, err2 = pcall(function()
+            -- المرحلة الأولى: عرض الخيارات وتحديدها فقط، قبل فك ملف الحفظ.
+            _G.BS_PRESELECTED_EDITS = nil
+            _G.BS_COLLECT_ONLY = true
+            local selectedEdits = result()
+            _G.BS_COLLECT_ONLY = nil
+            if type(selectedEdits) ~= "table" then
+                return
+            end
 
+            -- بعد موافقة المستخدم فقط يشغل المصدر مرحلة فك الملف والتطبيق.
+            _G.BS_PRESELECTED_EDITS = selectedEdits
+            local applied = result()
+            _G.BS_PRESELECTED_EDITS = nil
+            return applied
+        end)
+        _G.BS_PRESELECTED_EDITS = nil
         if not ok2 then
             report_tool_error("خطأ أثناء تنفيذ الأداة: " .. tostring(label), err2)
         end
     end
+    _G.BS_TOOL_SECTION = nil
 end
 
 while true do
@@ -4133,6 +5414,12 @@ while true do
         local choice=gg.choice({
 '【✦】 النسخ 【✦】',
 '【✦】 ملف خاص بالتعديل والسباق 【✦】',
+'【✦】 القسائم 【✦】',
+'【✦】 القطارات 【✦】',
+'【✦】 المختبر 【✦】',
+'【✦】 زينة وايموجي 【✦】',
+'【✦】 زيادة منتجات الشونة 【✦】',
+'【✦】 اختيارات اضافية【✦】',
 '【✦】 🃏 إرسال الكروت 【✦】',
 '【✦】 مدينة جديدة 【✦】',
 '【✦】 ❌ خروج 【✦】'
@@ -4155,10 +5442,16 @@ while true do
                     end
                 end
             end
-        elseif choice==2 then run_source(SRC_TOOL,'ملف خاص بالتعديل والسباق ')
-        elseif choice==3 then run_source(SRC_CARDS,'إرسال الكروت')
-        elseif choice==4 then run_source(SRC_LEVEL,'تفعيل مستوى 1')
-        elseif choice==5 then
+        elseif choice==2 then run_source(SRC_TOOL,'ملف خاص بالتعديل والسباق ','race')
+        elseif choice==3 then run_source(SRC_TOOL,'القسائم','coupons')
+        elseif choice==4 then run_source(SRC_TOOL,'القطارات','trains')
+        elseif choice==5 then run_source(SRC_TOOL,'المختبر','lab')
+        elseif choice==6 then run_source(SRC_TOOL,'زينة وايموجي','decoration')
+        elseif choice==7 then run_source(SRC_TOOL,'زيادة منتجات الشونة','barn')
+        elseif choice==8 then run_source(SRC_TOOL,'باقي الخيارات','other')
+        elseif choice==9 then run_source(SRC_CARDS,'إرسال الكروت')
+        elseif choice==10 then run_source(SRC_LEVEL,'تفعيل مستوى 1')
+        elseif choice==11 then
             gg.setVisible(true)
             break
         end
@@ -4184,5 +5477,5 @@ while true do
 ━━━━━━━━━━━━━━━━
 ]])
 else
-	gg.alert('🎲قم بتحميل الجاردن الخاص بكروب سنه اولى تطوير 🎲')
+	gg.alert('⚡☁قم بتحميل الجاردن الخاص بجروب سنة اولى تطوير ☁⚡')
 end
